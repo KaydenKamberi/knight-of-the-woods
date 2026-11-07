@@ -6,6 +6,7 @@ extends Control
 ##   doesn't need to know where the input came from.
 ## - Right half of the screen: drag to look around.
 ## - Camera icon (top right): switches between third and first person.
+## - Lock icon (under the camera icon): shift-lock, so the knight turns with the camera (C-4).
 ## - Throw button (bottom right): throws a knife at the crosshair (W-3).
 ##   It's dimmed while the knight has no knives.
 ## - Grab button (next to Throw): only appears when a knife is in reach (W-2).
@@ -35,6 +36,11 @@ const MOVE_ACTIONS := ["move_left", "move_right", "move_forward", "move_back"]
 var throw_enabled := false:
 	set(value):
 		throw_enabled = value
+		queue_redraw()
+## Set by the HUD: highlights the lock icon while shift-lock is on.
+var lock_on := false:
+	set(value):
+		lock_on = value
 		queue_redraw()
 ## Set by the HUD: shows the Grab button while a knife is in reach.
 var grab_visible := false:
@@ -76,6 +82,8 @@ func _exit_tree() -> void:
 func _on_finger_down(finger: int, at: Vector2) -> void:
 	if _camera_button_rect().has_point(at):
 		_tap_action(&"switch_camera")
+	elif _lock_button_rect().has_point(at):
+		_tap_action(&"shift_lock")
 	elif at.distance_to(_throw_button_center()) <= throw_button_radius:
 		_tap_action(&"throw")
 	elif grab_visible and at.distance_to(_grab_button_center()) <= grab_button_radius:
@@ -138,6 +146,13 @@ func _on_visibility_changed() -> void:
 		_look_finger = -1
 
 
+## The lock icon sits just below the camera icon.
+func _lock_button_rect() -> Rect2:
+	var rect := _camera_button_rect()
+	rect.position.y += camera_button_size + 20.0
+	return rect
+
+
 func _throw_button_center() -> Vector2:
 	return size - throw_button_home
 
@@ -172,6 +187,16 @@ func _draw() -> void:
 	draw_rect(Rect2(c + Vector2(-8, -18) * s, Vector2(16, 7) * s), icon)
 	draw_circle(c + Vector2(0, 3) * s, 9.0 * s, Color(0.1, 0.1, 0.12, 0.95))
 	draw_circle(c + Vector2(0, 3) * s, 5.0 * s, Color(1, 1, 1, 0.5))
+
+	# Lock icon: a padlock, filled in gold while shift-lock is on.
+	var lock_rect := _lock_button_rect()
+	var lc := lock_rect.get_center()
+	var lock_color := Color(1.0, 0.85, 0.35, 0.95) if lock_on else Color(1, 1, 1, 0.9)
+	draw_circle(lc, camera_button_size * 0.5, Color(0, 0, 0, 0.5 if lock_on else 0.35))
+	draw_arc(lc, camera_button_size * 0.5, 0.0, TAU, 48, lock_color, 2.5 if lock_on else 2.0, true)
+	draw_arc(lc + Vector2(0, -6) * s, 11.0 * s, PI, TAU, 16, lock_color, 4.0 * s, true)
+	draw_rect(Rect2(lc + Vector2(-16, -6) * s, Vector2(32, 26) * s), lock_color)
+	draw_circle(lc + Vector2(0, 5) * s, 4.0 * s, Color(0.1, 0.1, 0.12, 0.95))
 
 	# Throw button, with a knife drawn on it.
 	var throw_center := _throw_button_center()

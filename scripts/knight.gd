@@ -5,9 +5,13 @@ extends CharacterBody3D
 ## dragging on the right half of the screen, and switches between a camera
 ## behind the knight and a view from inside the helmet (PRD C-1 to C-3).
 ##
-## Moving and looking around wake up world time (T-2, K-2). Camera look is
-## applied the moment input arrives and never scaled by delta, so it stays
-## responsive even while the world is slowed (T-4).
+## Holding a move key ramps world time up, and throwing or grabbing gives it a
+## short bump (T-2). Camera look is applied the moment input arrives and never
+## scaled by delta, so it stays responsive even while the world is slowed (T-4).
+##
+## The third-person camera sits over the right shoulder so the crosshair is never
+## on the knight's head. Shift-lock (Left Shift, or the lock icon on touch)
+## makes the knight turn with the camera, like first person does (C-4).
 ##
 ## The knight pulls throwing knives from wanted posters, carries a few, and
 ## throws them at the crosshair (W-2 to W-4). Dummies' hits lower his health,
@@ -15,6 +19,7 @@ extends CharacterBody3D
 
 ## Sent whenever the view changes. true means first person (inside the helmet).
 signal view_changed(first_person: bool)
+signal shift_lock_changed(enabled: bool)
 signal health_changed(health: int, max_health: int)
 signal knives_changed(count: int, max_count: int)
 ## Sent when a knife comes into or goes out of reach. prompt is "" when there's nothing to grab.
@@ -26,8 +31,6 @@ signal died
 ## Layer Names > 3D Render). The first-person camera hides this layer so the
 ## inside of the helmet doesn't block the view.
 const KNIGHT_RENDER_LAYER := 2
-## Horizontal speed (metres per second) above which the knight counts as moving for world time.
-const STILL_SPEED := 0.2
 const KNIFE_SCENE := preload("res://scenes/throwing_knife.tscn")
 ## Physics layers the aim ray can hit: world (1), dummies (4) and debris (5).
 const AIM_MASK := 1 | 8 | 16
@@ -47,6 +50,8 @@ const THROW_ANIMATION_TIME := 0.25
 @export var touch_sensitivity := 0.005
 @export var third_person_distance := 4.0
 @export var third_person_height := 1.7
+## Over-the-shoulder offset in third person: x is to the right, y is up (C-4).
+@export var shoulder_offset := Vector2(0.6, 0.3)
 ## Eye height inside the helmet, lined up with the eye slit on the model.
 @export var first_person_height := 1.66
 ## How far down and up the camera can tilt, in degrees.
@@ -61,14 +66,14 @@ const THROW_ANIMATION_TIME := 0.25
 @export var max_knives := 3
 ## How close (in metres) a knife has to be to grab it.
 @export var pickup_range := 2.0
-## Real seconds world time keeps running after a throw or a grab (T-2).
-@export var action_time := 0.3
 ## How hard a dummy's hit shoves the knight back, in metres per second.
 @export var knockback_speed := 4.0
 ## How far the aim ray reaches, in metres.
 @export var aim_distance := 60.0
 
 var first_person := false
+## While on, the knight always faces where the camera looks (C-4).
+var shift_lock := false
 var health := 0
 var knives := 0
 
@@ -98,6 +103,7 @@ func _ready() -> void:
 	add_to_group("player")
 	health = max_health
 	_arm.spring_length = third_person_distance
+	_arm.position = _shoulder_position()
 	_pitch_pivot.position.y = third_person_height
 	_pitch_pivot.rotation.x = _pitch
 	_set_helmet_view(false)
@@ -110,10 +116,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("switch_camera"):
 		toggle_view()
+	elif event.is_action_pressed("shift_lock"):
+		set_shift_lock(not shift_lock)
 	elif event.is_action_pressed("interact"):
 		pick_up_knife()
 	elif event.is_action_pressed("pause"):
-		# Esc frees the mouse. The pause menu itself comes in a later milestone.
+		# Esc frees the mouse and turns shift-lock off. The pause menu comes in a later milestone.
+		set_shift_lock(false)
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton:
 		_on_mouse_button(event)
@@ -140,11 +149,9 @@ func _process(_delta: float) -> void:
 	if _dead:
 		return
 	_update_pickup_in_reach()
-	# Walking (keys or joystick), still sliding to a stop, or falling all keep world time running.
-	var wants_to_move := Input.get_vector("move_left", "move_right", "move_forward", "move_back") != Vector2.ZERO
-	var still_moving := Vector2(velocity.x, velocity.z).length() > STILL_SPEED or not is_on_floor()
-	if wants_to_move or still_moving:
-		WorldTime.report_activity()
+	# Holding a move key (or the joystick) ramps world time up.
+	if Input.get_vector("move_left", "move_right", "move_forward", "move_back") != Vector2.ZERO:
+		WorldTime.report_moving()
 
 
 func _physics_process(delta: float) -> void:
@@ -191,7 +198,7 @@ func throw_knife() -> void:
 	if _dead or knives <= 0:
 		return
 	_set_knives(knives - 1)
-	WorldTime.report_activity(action_time)
+	WorldTime.bump()
 
 	var forward := -_camera.global_basis.z
 	var start := _throw_start()
@@ -216,14 +223,14 @@ func pick_up_knife() -> void:
 	_pickup_in_reach = null
 	pickup_changed.emit("")
 	_set_knives(knives + 1)
-	WorldTime.report_activity(action_time)
+	WorldTime.bump()
 
 
 ## Turns the camera. x is left/right, y is up/down, both in radians.
 func add_look_input(amount: Vector2) -> void:
 	if amount == Vector2.ZERO:
 		return
-	WorldTime.report_activity()
+	WorldTime.report_looking()
 	_yaw.rotation.y -= amount.x
 	_set_pitch(_pitch - amount.y)
 
@@ -240,6 +247,16 @@ func set_touch_mode(enabled: bool) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
+## Turns shift-lock on or off. On PC it also captures the mouse, locking the cursor to the middle.
+func set_shift_lock(enabled: bool) -> void:
+	if enabled == shift_lock:
+		return
+	shift_lock = enabled
+	if enabled and not _touch_mode:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	shift_lock_changed.emit(enabled)
+
+
 ## Switches between third person (behind the knight) and first person (inside the helmet).
 func toggle_view() -> void:
 	first_person = not first_person
@@ -252,15 +269,21 @@ func toggle_view() -> void:
 	if first_person:
 		# Glide into the helmet, then hide the knight's own model and show the eye slit.
 		_view_tween.tween_property(_arm, "spring_length", 0.0, switch_time)
+		_view_tween.tween_property(_arm, "position", Vector3.ZERO, switch_time)
 		_view_tween.tween_property(_pitch_pivot, "position:y", first_person_height, switch_time)
 		_view_tween.chain().tween_callback(_set_helmet_view.bind(true))
 	else:
 		_set_helmet_view(false)
 		_set_pitch(_pitch)
 		_view_tween.tween_property(_arm, "spring_length", third_person_distance, switch_time)
+		_view_tween.tween_property(_arm, "position", _shoulder_position(), switch_time)
 		_view_tween.tween_property(_pitch_pivot, "position:y", third_person_height, switch_time)
 
 	view_changed.emit(first_person)
+
+
+func _shoulder_position() -> Vector3:
+	return Vector3(shoulder_offset.x, shoulder_offset.y, 0.0)
 
 
 func _announce_status() -> void:
@@ -341,8 +364,8 @@ func _set_helmet_view(enabled: bool) -> void:
 
 
 func _update_facing(direction: Vector3, delta: float) -> void:
-	if first_person:
-		# In first person the body always faces where the player looks.
+	if first_person or shift_lock:
+		# In first person and shift-lock the body always faces where the player looks.
 		_model.rotation.y = _yaw.rotation.y
 	elif direction.length_squared() > 0.01:
 		# The model faces -Z, so this angle turns -Z towards the walking direction.

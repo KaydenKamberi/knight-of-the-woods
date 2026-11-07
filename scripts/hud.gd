@@ -2,7 +2,7 @@ extends CanvasLayer
 ## Heads-up display.
 ##
 ## - Health bar, knife count and world-speed readout in the top-left corner (E-3).
-## - Crosshair in the middle, where knives are aimed.
+## - Crosshair in the middle, where knives are aimed, and a shift-lock indicator.
 ## - "Press E" prompt when a knife is in reach (PC), or the Grab button (touch).
 ## - Touch controls on phones and tablets, and a short controls hint on PC
 ##   (K-1). The last kind of input used wins: touching the screen switches to
@@ -30,6 +30,7 @@ var _flash_tween: Tween
 @onready var _knife_label: Label = $Status/KnifeLabel
 @onready var _world_time_label: Label = $Status/WorldTimeLabel
 @onready var _crosshair: Control = $Crosshair
+@onready var _shift_lock_label: Label = $Status/ShiftLockLabel
 @onready var _pickup_label: Label = $PickupPrompt
 @onready var _damage_flash: ColorRect = $DamageFlash
 @onready var _game_over: Control = $GameOver
@@ -74,6 +75,11 @@ func set_health(health: int, max_health: int) -> void:
 func set_knives(count: int, max_count: int) -> void:
 	_knife_label.text = "Knives %d / %d" % [count, max_count]
 	_touch_controls.throw_enabled = count > 0
+
+
+func set_shift_lock(enabled: bool) -> void:
+	_touch_controls.lock_on = enabled
+	_shift_lock_label.visible = enabled
 
 
 func set_pickup_prompt(prompt: String) -> void:

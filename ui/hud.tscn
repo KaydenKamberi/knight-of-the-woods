@@ -75,6 +75,15 @@ theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 18
 text = "World time 100%"
 
+[node name="ShiftLockLabel" type="Label" parent="Status"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.35, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 18
+text = "Shift-lock on"
+
 [node name="TouchControls" type="Control" parent="."]
 visible = false
 anchors_preset = 15
@@ -123,7 +132,7 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
 theme_override_constants/outline_size = 6
 theme_override_font_sizes/font_size = 22
 text = "Click to look around
-WASD move  ·  Mouse look  ·  Left click throw  ·  E grab  ·  V switch view  ·  Esc free the mouse"
+WASD move  ·  Mouse look  ·  Left click throw  ·  E grab  ·  Shift lock camera  ·  V switch view  ·  Esc free the mouse"
 horizontal_alignment = 1
 vertical_alignment = 2
 

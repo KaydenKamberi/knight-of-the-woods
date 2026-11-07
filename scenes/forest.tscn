@@ -86,3 +86,4 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 20)
 [connection signal="knives_changed" from="Knight" to="HUD" method="set_knives"]
 [connection signal="pickup_changed" from="Knight" to="HUD" method="set_pickup_prompt"]
 [connection signal="died" from="Knight" to="HUD" method="show_game_over"]
+[connection signal="shift_lock_changed" from="Knight" to="HUD" method="set_shift_lock"]

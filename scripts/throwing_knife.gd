@@ -25,7 +25,7 @@ const BLADE_LENGTH := 0.25
 @export var hit_push := 5.0
 ## How deep the blade sinks into what it hits, in metres.
 @export var sink_depth := 0.1
-## A knife that hits nothing for this long (world seconds) goes back to an empty poster.
+## A knife that hits nothing for this long (world seconds) disappears. Posters regrow knives (W-6).
 @export var max_flight_time := 5.0
 
 var velocity := Vector3.ZERO
@@ -49,8 +49,7 @@ func _physics_process(delta: float) -> void:
 		return
 	_flight_time += delta
 	if _flight_time > max_flight_time:
-		_flying = false
-		_return_to_a_poster()
+		queue_free()
 		return
 
 	velocity.y -= drop * delta
@@ -134,15 +133,6 @@ func _damage_target(collider: Object):
 		if is_instance_valid(dummy):
 			return dummy
 	return null
-
-
-## Knives that fly off into nothing go back to a poster, so they're never lost for good.
-func _return_to_a_poster() -> void:
-	var empty_posters := get_tree().get_nodes_in_group("wanted_posters").filter(
-			func(poster) -> bool: return not poster.has_knife)
-	if not empty_posters.is_empty():
-		empty_posters.pick_random().rearm()
-	queue_free()
 
 
 func _face(direction: Vector3) -> void:
