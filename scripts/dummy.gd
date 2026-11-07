@@ -1,0 +1,452 @@
+extends CharacterBody3D
+## A floppy straw training dummy that has come to life (PRD E-1, E-2, E-3).
+##
+## It walks straight at the knight and swings at him when close. A knife hit
+## knocks it into ragdoll physics: it flops to the ground, then pulls itself
+## back together and keeps coming. When its health runs out it goes fully
+## ragdoll and falls apart into pieces.
+##
+## The body is a set of boxes built in code. While walking, the boxes hang off
+## a tree of pivot nodes that the walk animation swings. For the ragdoll, each
+## box moves into its own RigidBody3D, joined to its neighbours by PinJoint3Ds.
+## Walking, attacking, timers and the ragdoll physics all run on world time.
+
+## Sent once, when the dummy's health reaches zero.
+signal defeated
+
+enum State { WALKING, ATTACKING, RAGDOLL, REASSEMBLING, DEFEATED }
+
+## Physics layer values (see Project Settings > Layer Names > 3D Physics).
+const WORLD_LAYER := 1
+const DEBRIS_LAYER := 16
+
+@export var max_health := 100
+@export var walk_speed := 2.2
+@export var turn_speed := 6.0
+
+@export_group("Attack")
+## How close the dummy has to be to swing at the knight, in metres.
+@export var attack_range := 1.4
+@export var attack_damage := 10
+## Seconds of wind-up before a swing lands. In slow motion that's plenty of time to react.
+@export var attack_windup := 0.6
+## Seconds after a swing before the dummy walks again.
+@export var attack_cooldown := 1.0
+
+@export_group("Ragdoll")
+## Seconds a hit dummy lies on the ground before getting back up.
+@export var ragdoll_time := 2.0
+## Seconds it takes to pull itself back together.
+@export var reassemble_time := 0.45
+## Seconds after defeat before its joints break and it falls apart.
+@export var fall_apart_delay := 0.3
+
+var health := 0
+var state := State.WALKING
+
+var _player = null
+var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
+## One entry per body part: its spec plus "pivot", "mesh", "rest" and "body".
+var _parts: Array[Dictionary] = []
+var _pivots := {}
+var _state_time := 0.0
+var _swung := false
+var _fell_apart := false
+var _walk_cycle := 0.0
+var _stuck_time := 0.0
+var _detour_time := 0.0
+var _detour_side := 1.0
+var _reassemble_tween: Tween
+
+@onready var _body: Node3D = $Body
+@onready var _collision: CollisionShape3D = $Collision
+## Holds the ragdoll's rigid bodies and joints. It's top level, so moving the dummy doesn't drag them.
+@onready var _ragdoll_root: Node3D = $Ragdoll
+
+
+func _ready() -> void:
+	health = max_health
+	add_to_group("dummies")
+	_build_body()
+
+
+func _physics_process(delta: float) -> void:
+	_state_time += delta
+	match state:
+		State.WALKING:
+			_walk(delta)
+		State.ATTACKING:
+			_attack(delta)
+		State.RAGDOLL:
+			if _state_time >= ragdoll_time:
+				_reassemble()
+		State.DEFEATED:
+			if not _fell_apart and _state_time >= fall_apart_delay:
+				_fall_apart()
+
+
+## Called by a knife that hits this dummy (or one of its ragdoll pieces).
+## Returns the body part the knife should stick into.
+func take_knife_hit(collider: Object, point: Vector3, direction: Vector3, damage: int, push: float) -> Node3D:
+	var part := _part_hit_by(collider, point)
+	if state != State.DEFEATED:
+		health = maxi(health - damage, 0)
+		if state == State.RAGDOLL:
+			_state_time = 0.0  # Knocked down again: stay down a little longer.
+		else:
+			_go_ragdoll()
+		if health == 0:
+			_start(State.DEFEATED)
+			remove_from_group("dummies")
+			defeated.emit()
+	var body: RigidBody3D = part["body"]
+	if body != null:
+		body.linear_velocity += direction * push + Vector3.UP
+	return part["mesh"]
+
+
+# --- Walking and attacking ---------------------------------------------------
+
+func _walk(delta: float) -> void:
+	if _player == null:
+		_player = get_tree().get_first_node_in_group("player")
+	var has_target: bool = _player != null and _player.is_alive()
+	var to_player := Vector3.ZERO
+	if has_target:
+		to_player = _player.global_position - global_position
+		to_player.y = 0.0
+	var distance := to_player.length()
+
+	var direction := Vector3.ZERO
+	if has_target and distance > attack_range * 0.8:
+		direction = to_player / distance
+		if _detour_time > 0.0:
+			# Stuck on a tree or rock: walk off to one side for a moment.
+			_detour_time -= delta
+			direction = direction.rotated(Vector3.UP, _detour_side * 1.2)
+	velocity.x = direction.x * walk_speed
+	velocity.z = direction.z * walk_speed
+	_apply_gravity(delta)
+	var before := global_position
+	move_and_slide()
+
+	if direction != Vector3.ZERO:
+		var moved_speed := (global_position - before).length() / maxf(delta, 0.0001)
+		_stuck_time = _stuck_time + delta if moved_speed < walk_speed * 0.3 else 0.0
+		if _stuck_time > 0.5:
+			_stuck_time = 0.0
+			_detour_time = 1.0
+			_detour_side = -1.0 if randf() < 0.5 else 1.0
+
+	_turn_towards(to_player if has_target else direction, delta)
+	_animate_walk(delta, Vector2(velocity.x, velocity.z).length() / walk_speed)
+	if has_target and distance <= attack_range:
+		_start(State.ATTACKING)
+
+
+func _attack(delta: float) -> void:
+	velocity.x = move_toward(velocity.x, 0.0, 20.0 * delta)
+	velocity.z = move_toward(velocity.z, 0.0, 20.0 * delta)
+	_apply_gravity(delta)
+	move_and_slide()
+
+	var to_player := Vector3.ZERO
+	if _player != null:
+		to_player = _player.global_position - global_position
+		to_player.y = 0.0
+	_turn_towards(to_player, delta)
+	_animate_walk(delta, 0.0)
+
+	# Raise both arms during the wind-up, then bring them down hard.
+	var arms_up := 2.4
+	if not _swung:
+		_set_arm_angle(lerpf(0.0, arms_up, clampf(_state_time / attack_windup, 0.0, 1.0)))
+		if _state_time >= attack_windup:
+			_swung = true
+			if _player != null and _player.is_alive() and to_player.length() <= attack_range + 0.4:
+				_player.take_damage(attack_damage, global_position)
+	else:
+		_set_arm_angle(lerpf(arms_up, 0.3, clampf((_state_time - attack_windup) / 0.15, 0.0, 1.0)))
+		if _state_time >= attack_windup + attack_cooldown:
+			_start(State.WALKING)
+
+
+func _start(new_state: State) -> void:
+	state = new_state
+	_state_time = 0.0
+	_swung = false
+
+
+func _apply_gravity(delta: float) -> void:
+	if is_on_floor():
+		velocity.y = 0.0
+	else:
+		velocity.y -= _gravity * delta
+
+
+func _turn_towards(direction: Vector3, delta: float) -> void:
+	if direction.length_squared() < 0.001:
+		return
+	# The body faces -Z, so this angle turns -Z towards the direction.
+	var target_angle := atan2(-direction.x, -direction.z)
+	_body.rotation.y = lerp_angle(_body.rotation.y, target_angle, turn_speed * delta)
+
+
+func _animate_walk(delta: float, amount: float) -> void:
+	amount = clampf(amount, 0.0, 1.0)
+	_walk_cycle = fmod(_walk_cycle + delta * 7.0 * amount, TAU)
+	var swing := sin(_walk_cycle) * 0.55 * amount
+	# Positive X rotation swings a hanging limb forward.
+	_pivots["thigh_l"].rotation.x = swing
+	_pivots["thigh_r"].rotation.x = -swing
+	_pivots["shin_l"].rotation.x = -0.5 * amount * (0.5 + 0.5 * sin(_walk_cycle + 1.6))
+	_pivots["shin_r"].rotation.x = -0.5 * amount * (0.5 + 0.5 * sin(_walk_cycle + 1.6 + PI))
+	if state == State.WALKING:
+		_pivots["upper_arm_l"].rotation.x = -swing * 0.8
+		_pivots["upper_arm_r"].rotation.x = swing * 0.8
+	# A floppy wobble of the head and body.
+	_pivots["head"].rotation.z = sin(_walk_cycle * 0.5) * 0.18 * amount
+	_pivots["torso"].rotation.z = sin(_walk_cycle) * 0.05 * amount
+
+
+func _set_arm_angle(angle: float) -> void:
+	_pivots["upper_arm_l"].rotation.x = angle
+	_pivots["upper_arm_r"].rotation.x = angle
+
+
+func _reset_pose() -> void:
+	for pivot: Node3D in _pivots.values():
+		pivot.rotation = Vector3.ZERO
+
+
+# --- Ragdoll -------------------------------------------------------------------
+
+func _go_ragdoll() -> void:
+	if _reassemble_tween:
+		_reassemble_tween.kill()
+	_start(State.RAGDOLL)
+	_collision.set_deferred("disabled", true)
+
+	# Move every box into its own rigid body, right where it is now.
+	for part in _parts:
+		var body := RigidBody3D.new()
+		body.name = String(part["name"]).to_pascal_case()
+		body.collision_layer = DEBRIS_LAYER
+		body.collision_mask = WORLD_LAYER | DEBRIS_LAYER
+		body.mass = part["mass"]
+		body.angular_damp = 1.5
+		# Lets a knife find this dummy when it hits a loose piece.
+		body.set_meta("dummy", self)
+		body.set_meta("part_name", part["name"])
+		var shape := BoxShape3D.new()
+		shape.size = part["size"]
+		var collision := CollisionShape3D.new()
+		collision.shape = shape
+		body.add_child(collision)
+		_ragdoll_root.add_child(body)
+		var mesh: MeshInstance3D = part["mesh"]
+		body.global_transform = mesh.global_transform
+		mesh.reparent(body, true)
+		body.linear_velocity = Vector3(velocity.x, 0.0, velocity.z)
+		part["body"] = body
+
+	# Pin each piece to its parent where the two meet.
+	for part in _parts:
+		if String(part["parent"]).is_empty():
+			continue
+		var pin := PinJoint3D.new()
+		_ragdoll_root.add_child(pin)
+		pin.global_position = (part["pivot"] as Node3D).global_position
+		pin.node_a = pin.get_path_to(_find_part(part["parent"])["body"])
+		pin.node_b = pin.get_path_to(part["body"])
+
+	_reset_pose()
+
+
+## Gets back up: every piece flies back to its place on the body.
+func _reassemble() -> void:
+	_start(State.REASSEMBLING)
+	var pelvis: RigidBody3D = _parts[0]["body"]
+	var spot := pelvis.global_position
+	spot.y = global_position.y
+	global_position = spot
+	if _player != null:
+		var to_player: Vector3 = _player.global_position - global_position
+		_body.rotation.y = atan2(-to_player.x, -to_player.z)
+
+	_reassemble_tween = create_tween().set_parallel()
+	for part in _parts:
+		var mesh: MeshInstance3D = part["mesh"]
+		mesh.reparent(part["pivot"], true)
+		_reassemble_tween.tween_property(mesh, "transform", part["rest"], reassemble_time) \
+				.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		part["body"] = null
+	for child in _ragdoll_root.get_children():
+		child.queue_free()
+	_collision.disabled = false
+	_reassemble_tween.chain().tween_callback(_start.bind(State.WALKING))
+
+
+## Breaks every joint so the defeated dummy falls apart.
+func _fall_apart() -> void:
+	_fell_apart = true
+	for child in _ragdoll_root.get_children():
+		if child is Joint3D:
+			child.queue_free()
+	for part in _parts:
+		var body: RigidBody3D = part["body"]
+		if body != null:
+			body.linear_velocity += Vector3(randf_range(-1.5, 1.5), randf_range(0.5, 2.0), randf_range(-1.5, 1.5))
+			body.angular_velocity += Vector3(randf_range(-4, 4), randf_range(-4, 4), randf_range(-4, 4))
+	set_physics_process(false)
+
+
+func _part_hit_by(collider: Object, point: Vector3) -> Dictionary:
+	if collider is RigidBody3D and collider.has_meta("part_name"):
+		return _find_part(collider.get_meta("part_name"))
+	# Hit the walking dummy's capsule: pick the body part closest to the hit.
+	var closest: Dictionary = _parts[0]
+	var closest_distance := INF
+	for part in _parts:
+		var distance := (part["mesh"] as Node3D).global_position.distance_to(point)
+		if distance < closest_distance:
+			closest = part
+			closest_distance = distance
+	return closest
+
+
+func _find_part(part_name: String) -> Dictionary:
+	for part in _parts:
+		if part["name"] == part_name:
+			return part
+	return {}
+
+
+# --- Building the body ---------------------------------------------------------
+
+## The body parts, parents first. "joint" is where a part hangs from its parent,
+## "center" is the middle of its box, both measured from the dummy's feet.
+func _part_specs() -> Array[Dictionary]:
+	var specs: Array[Dictionary] = [
+		{"name": "pelvis", "parent": "", "joint": Vector3(0, 0.95, 0), "center": Vector3(0, 0.95, 0),
+				"size": Vector3(0.36, 0.2, 0.24), "mass": 6.0, "material": "cloth"},
+		{"name": "torso", "parent": "pelvis", "joint": Vector3(0, 1.05, 0), "center": Vector3(0, 1.31, 0),
+				"size": Vector3(0.42, 0.52, 0.26), "mass": 8.0, "material": "cloth"},
+		{"name": "head", "parent": "torso", "joint": Vector3(0, 1.58, 0), "center": Vector3(0, 1.74, 0),
+				"size": Vector3(0.3, 0.3, 0.3), "mass": 3.0, "material": "head"},
+	]
+	for side in [-1.0, 1.0]:
+		var suffix := "_l" if side < 0.0 else "_r"
+		specs.append_array([
+			{"name": "upper_arm" + suffix, "parent": "torso", "joint": Vector3(0.28 * side, 1.53, 0),
+					"center": Vector3(0.28 * side, 1.38, 0), "size": Vector3(0.12, 0.3, 0.12),
+					"mass": 1.5, "material": "limb"},
+			{"name": "lower_arm" + suffix, "parent": "upper_arm" + suffix, "joint": Vector3(0.28 * side, 1.23, 0),
+					"center": Vector3(0.28 * side, 1.07, 0), "size": Vector3(0.11, 0.3, 0.11),
+					"mass": 1.2, "material": "limb"},
+			{"name": "thigh" + suffix, "parent": "pelvis", "joint": Vector3(0.1 * side, 0.85, 0),
+					"center": Vector3(0.1 * side, 0.65, 0), "size": Vector3(0.14, 0.4, 0.14),
+					"mass": 2.5, "material": "limb"},
+			{"name": "shin" + suffix, "parent": "thigh" + suffix, "joint": Vector3(0.1 * side, 0.45, 0),
+					"center": Vector3(0.1 * side, 0.24, 0), "size": Vector3(0.13, 0.42, 0.13),
+					"mass": 2.0, "material": "limb"},
+		])
+	return specs
+
+
+func _build_body() -> void:
+	var materials := {
+		"cloth": _material(Color(0.74, 0.62, 0.42)),
+		"limb": _material(Color(0.64, 0.52, 0.34)),
+		"head": _material(Color(0.8, 0.7, 0.5)),
+	}
+	var joints := {}
+	for spec in _part_specs():
+		var parent_name: String = spec["parent"]
+		var parent_pivot: Node3D = _body if parent_name.is_empty() else _pivots[parent_name]
+		var parent_joint: Vector3 = Vector3.ZERO if parent_name.is_empty() else joints[parent_name]
+		var joint: Vector3 = spec["joint"]
+		var center: Vector3 = spec["center"]
+
+		var pivot := Node3D.new()
+		pivot.name = String(spec["name"]).to_pascal_case()
+		pivot.position = joint - parent_joint
+		parent_pivot.add_child(pivot)
+
+		var box := BoxMesh.new()
+		box.size = spec["size"]
+		box.material = materials[spec["material"]]
+		var mesh := MeshInstance3D.new()
+		mesh.name = "Mesh"
+		mesh.mesh = box
+		mesh.position = center - joint
+		pivot.add_child(mesh)
+
+		_pivots[spec["name"]] = pivot
+		joints[spec["name"]] = joint
+		var part := spec.duplicate()
+		part["pivot"] = pivot
+		part["mesh"] = mesh
+		part["rest"] = mesh.transform
+		part["body"] = null
+		_parts.append(part)
+
+	_add_details()
+
+
+## The painted target, stitched face and straw hair that make it a training dummy.
+func _add_details() -> void:
+	var red := _material(Color(0.75, 0.14, 0.12))
+	var white := _material(Color(0.92, 0.9, 0.84))
+	var stitch := _material(Color(0.2, 0.13, 0.08))
+	var straw := _material(Color(0.9, 0.78, 0.36))
+
+	var torso: Node3D = _find_part("torso")["mesh"]
+	_add_disc(torso, 0.13, red, Vector3(0, 0.04, -0.133))
+	_add_disc(torso, 0.085, white, Vector3(0, 0.04, -0.136))
+	_add_disc(torso, 0.04, red, Vector3(0, 0.04, -0.139))
+
+	var head: Node3D = _find_part("head")["mesh"]
+	for x in [-0.07, 0.07]:
+		# Each eye is an X made of two crossed stitches.
+		for tilt in [PI / 4.0, -PI / 4.0]:
+			_add_box(head, Vector3(0.09, 0.016, 0.01), stitch, Vector3(x, 0.03, -0.152), tilt)
+	_add_box(head, Vector3(0.13, 0.014, 0.01), stitch, Vector3(0, -0.07, -0.152))
+	for i in 3:
+		var x := (i - 1) * 0.07
+		_add_box(head, Vector3(0.04, 0.12, 0.04), straw, Vector3(x, 0.18, 0), x * 2.5)
+
+	var pelvis: Node3D = _find_part("pelvis")["mesh"]
+	_add_box(pelvis, Vector3(0.38, 0.05, 0.26), stitch, Vector3(0, 0.08, 0))
+
+
+func _add_box(parent: Node3D, size: Vector3, material: Material, at: Vector3, tilt := 0.0) -> void:
+	var box := BoxMesh.new()
+	box.size = size
+	box.material = material
+	var mesh := MeshInstance3D.new()
+	mesh.mesh = box
+	mesh.transform = Transform3D(Basis(Vector3.BACK, tilt), at)
+	parent.add_child(mesh)
+
+
+## A thin disc facing forward (-Z), for the target on the chest.
+func _add_disc(parent: Node3D, radius: float, material: Material, at: Vector3) -> void:
+	var disc := CylinderMesh.new()
+	disc.top_radius = radius
+	disc.bottom_radius = radius
+	disc.height = 0.006
+	disc.radial_segments = 10
+	disc.rings = 0
+	disc.material = material
+	var mesh := MeshInstance3D.new()
+	mesh.mesh = disc
+	mesh.transform = Transform3D(Basis(Vector3.RIGHT, PI / 2.0), at)
+	parent.add_child(mesh)
+
+
+func _material(color: Color) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.roughness = 1.0
+	return material

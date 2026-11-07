@@ -3,6 +3,7 @@ extends Node3D
 ## Builds the small low-poly forest from code (PRD S-1, S-3, S-4).
 ##
 ## Trees, rocks and bushes are scattered around an open clearing in the middle.
+## A few trees around the clearing carry wanted posters with knives (W-1).
 ## A thick ring of trees surrounds the play area, with an invisible wall inside
 ## it so the knight can't walk out. The same seed always makes the same forest.
 ##
@@ -20,6 +21,15 @@ const PINE_COLOR := Color(0.16, 0.36, 0.2)
 const LEAF_COLOR := Color(0.3, 0.5, 0.2)
 const ROCK_COLOR := Color(0.5, 0.5, 0.48)
 const BUSH_COLOR := Color(0.22, 0.42, 0.18)
+const POSTER_SCENE := preload("res://scenes/wanted_poster.tscn")
+## Poster trees are all this size, so the poster sits neatly on the trunk below the leaves.
+const POSTER_TREE_SIZE := 1.1
+## How far the poster sits from the middle of its tree trunk, and how high up.
+const POSTER_OFFSET := 0.24
+const POSTER_HEIGHT := 1.4
+## Physics layer value for the invisible edge wall (layer 3, "boundary").
+## The knight bumps into it, but thrown knives fly through.
+const BOUNDARY_LAYER := 4
 
 @export var forest_seed := 7
 ## The open space in the middle where the knight starts.
@@ -37,6 +47,11 @@ const BUSH_COLOR := Color(0.22, 0.42, 0.18)
 @export var edge_tree_spacing := 2.6
 ## Share of trees that are pines. The rest are round leafy trees.
 @export_range(0.0, 1.0) var pine_share := 0.6
+@export_group("Wanted posters")
+@export var poster_count := 6
+## How far from the middle poster trees stand: x is the nearest, y the farthest, in metres.
+@export var poster_distance := Vector2(9.5, 14.0)
+@export_group("")
 @export_tool_button("Rebuild Forest", "Reload") var rebuild_button := rebuild
 
 var _rng := RandomNumberGenerator.new()
@@ -72,6 +87,14 @@ func _build_trees() -> void:
 	var leafy_tints: Array[Color] = []
 	var colliders: Array[Vector3] = []
 
+	# Poster trees go first, so the random trees keep out of their way.
+	for spot in _place_poster_trees():
+		var turn := Basis(Vector3.UP, _rng.randf() * TAU)
+		leafy.append(Transform3D(turn.scaled(Vector3.ONE * POSTER_TREE_SIZE), spot))
+		leafy_tints.append(_random_tint())
+		colliders.append(spot)
+		_add_poster(spot)
+
 	var spots := _scatter(inner_tree_count, clearing_radius, play_radius - 1.0, inner_tree_spacing * 0.5)
 	spots.append_array(_scatter(edge_tree_count, play_radius - 1.0, play_radius + edge_depth, edge_tree_spacing * 0.5))
 
@@ -96,7 +119,7 @@ func _build_trees() -> void:
 
 	var body := _add_static_body("TreeColliders")
 	var trunk_shape := CylinderShape3D.new()
-	trunk_shape.radius = 0.35
+	trunk_shape.radius = 0.25
 	trunk_shape.height = 4.0
 	for spot in colliders:
 		_add_shape(body, trunk_shape, spot + Vector3(0.0, 2.0, 0.0))
@@ -135,6 +158,8 @@ func _build_bushes() -> void:
 ## A ring of invisible boxes just inside the edge trees.
 func _build_edge_wall() -> void:
 	var body := _add_static_body("EdgeWall")
+	body.collision_layer = BOUNDARY_LAYER
+	body.collision_mask = 0
 	var segments := 48
 	var radius := play_radius + 0.5
 	var shape := BoxShape3D.new()
@@ -147,6 +172,33 @@ func _build_edge_wall() -> void:
 
 
 # --- Placement --------------------------------------------------------------
+
+## Picks one spot per poster, spread evenly around the clearing.
+func _place_poster_trees() -> Array[Vector3]:
+	var spots: Array[Vector3] = []
+	var keep_out := inner_tree_spacing * 0.5
+	var start_angle := _rng.randf() * TAU
+	for i in poster_count:
+		for _attempt in 20:
+			var angle := start_angle + TAU * i / poster_count + _rng.randf_range(-0.25, 0.25)
+			var distance := _rng.randf_range(poster_distance.x, poster_distance.y)
+			var point := Vector2(cos(angle), sin(angle)) * distance
+			if _is_free(point, keep_out):
+				_mark_used(point, keep_out)
+				spots.append(Vector3(point.x, 0.0, point.y))
+				break
+	return spots
+
+
+## Pins a wanted poster to the side of the tree at `tree` that faces the clearing.
+func _add_poster(tree: Vector3) -> void:
+	var to_middle := Vector3(-tree.x, 0.0, -tree.z).normalized()
+	var poster := POSTER_SCENE.instantiate() as Node3D
+	_generated.add_child(poster)
+	# The poster's front is its +Z side, so point -Z away from the clearing.
+	var spot := tree + to_middle * POSTER_OFFSET + Vector3.UP * POSTER_HEIGHT
+	poster.transform = Transform3D(Basis.looking_at(-to_middle, Vector3.UP), spot)
+
 
 
 ## Picks up to `count` random spots on the ground between two distances from the

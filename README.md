@@ -29,6 +29,8 @@ The full design is in `Knight of the Still Woods — PRD.md`.
 | --- | --- | --- |
 | Move | WASD or arrow keys | Joystick: put your thumb anywhere on the left half of the screen |
 | Look around | Mouse (click the game first to capture the mouse) | Drag on the right half of the screen |
+| Throw a knife at the crosshair | Left click (once the mouse is captured) | Throw button, bottom right |
+| Pull a knife from a poster, or pick up a thrown one | E | Grab button (appears when a knife is in reach) |
 | Switch view (behind the knight / inside the helmet) | V | Camera icon, top right |
 | Free the mouse | Esc | — |
 
@@ -42,6 +44,11 @@ If a PC has a touch screen, the last thing you used wins: touching the screen sh
 - **`scenes/knight.tscn`** + **`scripts/knight.gd`**: the knight, built from simple low-poly shapes, with walking, camera look and the view switch. Speed, mouse and touch sensitivity, and camera distance can be changed on the `Knight` node in the Inspector.
 - **`ui/hud.tscn`** + **`scripts/hud.gd`** + **`scripts/touch_controls.gd`**: the on-screen joystick, drag-to-look, camera icon, and the PC controls hint.
 - **`ui/helmet_eye_slit.gdshader`**: the dark helmet edges and eye slit shown in first person.
+- **`scenes/wanted_poster.tscn`** + **`scripts/wanted_poster.gd`**: a wanted poster pinned to a tree with a knife. The forest generator puts them on trees around the clearing (set how many under **Wanted posters** on the `Trees` node). The portrait is a blank "?" until M4 adds the mini bosses.
+- **`scenes/throwing_knife.tscn`** + **`scripts/throwing_knife.gd`**: a thrown knife. It spins, sticks in what it hits, and can be picked up again. Speed, drop, spin and damage (50) are set at the top of the script. A knife that hits nothing goes back to an empty poster, so you never run out for good.
+- **`scenes/knife_model.tscn`**: the knife's low-poly model, shared by posters and thrown knives.
+- **`scenes/dummy.tscn`** + **`scripts/dummy.gd`**: a straw training dummy that walks at the knight and swings at him. Health 100, so two knife hits. The first hit knocks it into a ragdoll; it lies there for a moment, then pulls itself back together. The second hit makes it fall apart. Speed, damage and timings are on the `Dummy` node in the Inspector. Its body is built in code, so in the editor you only see its collision capsule.
+- **`scripts/crosshair.gd`**: the aiming dot in the middle of the screen.
 - **`scripts/world_time.gd`**: the time mechanic (autoload, reachable from any script as `WorldTime`). See below.
 - **`scenes/swinging_log.tscn`** + **`scripts/swinging_log.gd`**: a log on two ropes in front of the start point, for checking that the world slows down.
 
@@ -49,9 +56,10 @@ If a PC has a touch screen, the last thing you used wins: touching the screen sh
 
 World time runs at full speed while you move, look around or act, and slows to about 5% when you stand still. It blends between the two instead of snapping.
 
-- **What counts as acting:** walking (keys or joystick), still sliding to a stop or falling, and turning the camera (mouse or touch drag). Throwing and swinging will call `WorldTime.report_activity()` when they arrive in M3.
+- **What counts as acting:** walking (keys or joystick), still sliding to a stop or falling, turning the camera (mouse or touch drag), throwing a knife and grabbing one. Anything new that should count calls `WorldTime.report_activity()`.
 - **What slows down:** everything on Godot's normal clock. That's physics, `delta` in `_process`/`_physics_process`, animations, tweens, timers, and sound speed. It works through `Engine.time_scale`, so new things follow world time without extra code. Particles aren't in the game yet: check they slow down too when the first ones are added, and if not, set their speed from `WorldTime.speed`.
 - **What stays in real time:** the camera look, the first/third-person glide, and the HUD.
+- **Dummies, knives and ragdolls** all run on world time: walking, swing wind-ups, the knife's flight and spin, ragdoll physics, and getting back up.
 
 **Tuning:** all the numbers are at the top of `scripts/world_time.gd`:
 
@@ -64,6 +72,16 @@ World time runs at full speed while you move, look around or act, and slows to a
 | `enabled` | `true` | Set to `false` to turn the mechanic off |
 
 The "World time" readout in the top-left corner shows the current speed. Turn it off with **Show World Time** on the `HUD` node.
+
+## Physics layers
+
+| Layer | Name | Used by |
+| --- | --- | --- |
+| 1 | world | Ground, trees, rocks, the swinging log |
+| 2 | player | The knight |
+| 3 | boundary | The invisible wall at the forest edge (stops the knight and dummies, not knives) |
+| 4 | dummies | Walking dummies |
+| 5 | debris | Ragdoll pieces (knives hit them; the knight walks through them) |
 
 ## Install export templates first
 

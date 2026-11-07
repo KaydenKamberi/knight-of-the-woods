@@ -4,6 +4,7 @@
 [ext_resource type="PackedScene" path="res://scenes/knight.tscn" id="2_knight"]
 [ext_resource type="PackedScene" path="res://ui/hud.tscn" id="3_hud"]
 [ext_resource type="PackedScene" path="res://scenes/swinging_log.tscn" id="4_log"]
+[ext_resource type="PackedScene" path="res://scenes/dummy.tscn" id="5_dummy"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.36, 0.55, 0.78, 1)
@@ -66,7 +67,22 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -5)
 
 [node name="Knight" parent="." instance=ExtResource("2_knight")]
 
+[node name="Dummies" type="Node3D" parent="."]
+
+[node name="Dummy1" parent="Dummies" instance=ExtResource("5_dummy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, -15)
+
+[node name="Dummy2" parent="Dummies" instance=ExtResource("5_dummy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -8)
+
+[node name="Dummy3" parent="Dummies" instance=ExtResource("5_dummy")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 20)
+
 [node name="HUD" parent="." instance=ExtResource("3_hud")]
 
 [connection signal="input_mode_changed" from="HUD" to="Knight" method="set_touch_mode"]
 [connection signal="look_dragged" from="HUD" to="Knight" method="add_touch_look"]
+[connection signal="health_changed" from="Knight" to="HUD" method="set_health"]
+[connection signal="knives_changed" from="Knight" to="HUD" method="set_knives"]
+[connection signal="pickup_changed" from="Knight" to="HUD" method="set_pickup_prompt"]
+[connection signal="died" from="Knight" to="HUD" method="show_game_over"]

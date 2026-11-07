@@ -1,0 +1,56 @@
+[gd_scene format=3]
+
+[sub_resource type="StandardMaterial3D" id="Mat_blade"]
+albedo_color = Color(0.78, 0.8, 0.84, 1)
+metallic = 0.7
+roughness = 0.35
+
+[sub_resource type="StandardMaterial3D" id="Mat_grip"]
+albedo_color = Color(0.3, 0.18, 0.1, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="Mat_brass"]
+albedo_color = Color(0.78, 0.6, 0.25, 1)
+metallic = 0.6
+roughness = 0.45
+
+[sub_resource type="BoxMesh" id="Box_blade"]
+material = SubResource("Mat_blade")
+size = Vector3(0.035, 0.006, 0.2)
+
+[sub_resource type="PrismMesh" id="Prism_tip"]
+material = SubResource("Mat_blade")
+size = Vector3(0.035, 0.04, 0.006)
+
+[sub_resource type="BoxMesh" id="Box_guard"]
+material = SubResource("Mat_brass")
+size = Vector3(0.09, 0.02, 0.02)
+
+[sub_resource type="BoxMesh" id="Box_grip"]
+material = SubResource("Mat_grip")
+size = Vector3(0.025, 0.025, 0.11)
+
+[sub_resource type="BoxMesh" id="Box_pommel"]
+material = SubResource("Mat_brass")
+size = Vector3(0.035, 0.035, 0.02)
+
+[node name="KnifeModel" type="Node3D"]
+
+[node name="Blade" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.11)
+mesh = SubResource("Box_blade")
+
+[node name="Tip" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -0.23)
+mesh = SubResource("Prism_tip")
+
+[node name="Guard" type="MeshInstance3D" parent="."]
+mesh = SubResource("Box_guard")
+
+[node name="Grip" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.065)
+mesh = SubResource("Box_grip")
+
+[node name="Pommel" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.13)
+mesh = SubResource("Box_pommel")

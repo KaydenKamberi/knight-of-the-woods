@@ -6,6 +6,9 @@ extends Control
 ##   doesn't need to know where the input came from.
 ## - Right half of the screen: drag to look around.
 ## - Camera icon (top right): switches between third and first person.
+## - Throw button (bottom right): throws a knife at the crosshair (W-3).
+##   It's dimmed while the knight has no knives.
+## - Grab button (next to Throw): only appears when a knife is in reach (W-2).
 ##
 ## Each finger is tracked separately, so you can walk and look at the same time.
 
@@ -21,6 +24,23 @@ const MOVE_ACTIONS := ["move_left", "move_right", "move_forward", "move_back"]
 @export var camera_button_size := 84.0
 ## Gap between the camera icon and the top-right corner.
 @export var camera_button_margin := Vector2(32.0, 32.0)
+@export var throw_button_radius := 62.0
+## Middle of the Throw button, measured from the bottom-right corner.
+@export var throw_button_home := Vector2(130.0, 140.0)
+@export var grab_button_radius := 48.0
+## Middle of the Grab button, measured from the bottom-right corner.
+@export var grab_button_home := Vector2(265.0, 95.0)
+
+## Set by the HUD: dims the Throw button when there's nothing to throw.
+var throw_enabled := false:
+	set(value):
+		throw_enabled = value
+		queue_redraw()
+## Set by the HUD: shows the Grab button while a knife is in reach.
+var grab_visible := false:
+	set(value):
+		grab_visible = value
+		queue_redraw()
 
 var _stick_finger := -1
 var _stick_center := Vector2.ZERO
@@ -48,9 +68,18 @@ func _input(event: InputEvent) -> void:
 			look_dragged.emit(event.relative)
 
 
+func _exit_tree() -> void:
+	# Restarting the game reloads the scene. Make sure no movement stays "held".
+	_apply_move(Vector2.ZERO)
+
+
 func _on_finger_down(finger: int, at: Vector2) -> void:
 	if _camera_button_rect().has_point(at):
-		_press_switch_camera()
+		_tap_action(&"switch_camera")
+	elif at.distance_to(_throw_button_center()) <= throw_button_radius:
+		_tap_action(&"throw")
+	elif grab_visible and at.distance_to(_grab_button_center()) <= grab_button_radius:
+		_tap_action(&"interact")
 	elif at.x < size.x * 0.5:
 		if _stick_finger == -1:
 			_stick_finger = finger
@@ -92,11 +121,11 @@ func _apply_move(stick: Vector2) -> void:
 			Input.action_release(MOVE_ACTIONS[i])
 
 
-## Sends a "switch_camera" press and release, exactly as if V was tapped.
-func _press_switch_camera() -> void:
+## Sends a press and release of an input action, exactly as if its key was tapped.
+func _tap_action(action_name: StringName) -> void:
 	for pressed in [true, false]:
 		var action := InputEventAction.new()
-		action.action = &"switch_camera"
+		action.action = action_name
 		action.pressed = pressed
 		Input.parse_input_event(action)
 
@@ -107,6 +136,14 @@ func _on_visibility_changed() -> void:
 		if _stick_finger != -1:
 			_release_stick()
 		_look_finger = -1
+
+
+func _throw_button_center() -> Vector2:
+	return size - throw_button_home
+
+
+func _grab_button_center() -> Vector2:
+	return size - grab_button_home
 
 
 func _camera_button_rect() -> Rect2:
@@ -135,3 +172,29 @@ func _draw() -> void:
 	draw_rect(Rect2(c + Vector2(-8, -18) * s, Vector2(16, 7) * s), icon)
 	draw_circle(c + Vector2(0, 3) * s, 9.0 * s, Color(0.1, 0.1, 0.12, 0.95))
 	draw_circle(c + Vector2(0, 3) * s, 5.0 * s, Color(1, 1, 1, 0.5))
+
+	# Throw button, with a knife drawn on it.
+	var throw_center := _throw_button_center()
+	var throw_alpha := 1.0 if throw_enabled else 0.35
+	_draw_round_button(throw_center, throw_button_radius, "THROW", throw_alpha)
+	var k := throw_button_radius / 62.0
+	var blade := PackedVector2Array([
+		throw_center + Vector2(-4, -6) * k, throw_center + Vector2(4, -6) * k,
+		throw_center + Vector2(0, -34) * k,
+	])
+	draw_colored_polygon(blade, Color(1, 1, 1, 0.9 * throw_alpha))
+	draw_rect(Rect2(throw_center + Vector2(-11, -7) * k, Vector2(22, 4) * k), Color(1, 1, 1, 0.9 * throw_alpha))
+	draw_rect(Rect2(throw_center + Vector2(-3, -3) * k, Vector2(6, 12) * k), Color(1, 1, 1, 0.9 * throw_alpha))
+
+	if grab_visible:
+		_draw_round_button(_grab_button_center(), grab_button_radius, "GRAB", 1.0)
+
+
+func _draw_round_button(center: Vector2, radius: float, label: String, alpha: float) -> void:
+	draw_circle(center, radius, Color(0, 0, 0, 0.35 * alpha))
+	draw_arc(center, radius, 0.0, TAU, 48, Color(1, 1, 1, 0.55 * alpha), 2.5, true)
+	var font := get_theme_default_font()
+	var font_size := 18
+	var width := radius * 2.0
+	var baseline := center + Vector2(-radius, radius * 0.55)
+	draw_string(font, baseline, label, HORIZONTAL_ALIGNMENT_CENTER, width, font_size, Color(1, 1, 1, 0.95 * alpha))

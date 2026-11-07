@@ -2,10 +2,78 @@
 
 [ext_resource type="Script" path="res://scripts/hud.gd" id="1_hud"]
 [ext_resource type="Script" path="res://scripts/touch_controls.gd" id="2_touch"]
+[ext_resource type="Script" path="res://scripts/crosshair.gd" id="3_crosshair"]
+
+[sub_resource type="StyleBoxFlat" id="Style_health_back"]
+bg_color = Color(0, 0, 0, 0.5)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="Style_health_fill"]
+bg_color = Color(0.8, 0.16, 0.14, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
 
 [node name="HUD" type="CanvasLayer"]
 layer = 2
 script = ExtResource("1_hud")
+
+[node name="DamageFlash" type="ColorRect" parent="."]
+modulate = Color(1, 1, 1, 0)
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.8, 0, 0, 0.3)
+
+[node name="Crosshair" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_crosshair")
+
+[node name="Status" type="VBoxContainer" parent="."]
+offset_left = 24.0
+offset_top = 20.0
+offset_right = 304.0
+offset_bottom = 120.0
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="HealthBar" type="ProgressBar" parent="Status"]
+custom_minimum_size = Vector2(260, 22)
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+theme_override_styles/background = SubResource("Style_health_back")
+theme_override_styles/fill = SubResource("Style_health_fill")
+value = 100.0
+show_percentage = false
+
+[node name="KnifeLabel" type="Label" parent="Status"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.95)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 22
+text = "Knives 0 / 3"
+
+[node name="WorldTimeLabel" type="Label" parent="Status"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.8)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 18
+text = "World time 100%"
 
 [node name="TouchControls" type="Control" parent="."]
 visible = false
@@ -17,15 +85,36 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("2_touch")
 
+[node name="PickupPrompt" type="Label" parent="."]
+visible = false
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -170.0
+offset_right = 300.0
+offset_bottom = -130.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(1, 0.93, 0.7, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 26
+text = "[E]  Pull the knife from the poster"
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="PcHint" type="Label" parent="."]
 anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -420.0
+offset_left = -460.0
 offset_top = -100.0
-offset_right = 420.0
+offset_right = 460.0
 offset_bottom = -30.0
 grow_horizontal = 2
 grow_vertical = 0
@@ -34,17 +123,55 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
 theme_override_constants/outline_size = 6
 theme_override_font_sizes/font_size = 22
 text = "Click to look around
-WASD move  ·  Mouse look  ·  V switch view  ·  Esc free the mouse"
+WASD move  ·  Mouse look  ·  Left click throw  ·  E grab  ·  V switch view  ·  Esc free the mouse"
 horizontal_alignment = 1
 vertical_alignment = 2
 
-[node name="WorldTimeLabel" type="Label" parent="."]
-offset_left = 24.0
-offset_top = 18.0
-offset_right = 324.0
-offset_bottom = 52.0
+[node name="GameOver" type="ColorRect" parent="."]
+process_mode = 3
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.06, 0.02, 0.02, 0.75)
+
+[node name="Center" type="VBoxContainer" parent="GameOver"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -260.0
+offset_top = -120.0
+offset_right = 260.0
+offset_bottom = 120.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 18
+alignment = 1
+
+[node name="Title" type="Label" parent="GameOver/Center"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.88, 0.8, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 56
+text = "You have fallen"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="GameOver/Center"]
+layout_mode = 2
 theme_override_colors/font_color = Color(1, 1, 1, 0.85)
-theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
-theme_override_constants/outline_size = 5
-theme_override_font_sizes/font_size = 20
-text = "World time 100%"
+theme_override_font_sizes/font_size = 24
+text = "The dummies got the better of you."
+horizontal_alignment = 1
+
+[node name="RestartButton" type="Button" parent="GameOver/Center"]
+custom_minimum_size = Vector2(220, 64)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_font_sizes/font_size = 28
+text = "Restart"

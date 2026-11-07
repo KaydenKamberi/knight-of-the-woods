@@ -1,0 +1,60 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/wanted_poster.gd" id="1_poster"]
+[ext_resource type="PackedScene" path="res://scenes/knife_model.tscn" id="2_knife"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_paper"]
+albedo_color = Color(0.86, 0.78, 0.6, 1)
+roughness = 1.0
+
+[sub_resource type="StandardMaterial3D" id="Mat_portrait"]
+albedo_color = Color(0.32, 0.24, 0.16, 1)
+roughness = 1.0
+
+[sub_resource type="BoxMesh" id="Box_paper"]
+material = SubResource("Mat_paper")
+size = Vector3(0.46, 0.62, 0.012)
+
+[sub_resource type="BoxMesh" id="Box_portrait"]
+material = SubResource("Mat_portrait")
+size = Vector3(0.3, 0.24, 0.004)
+
+[node name="WantedPoster" type="Node3D"]
+script = ExtResource("1_poster")
+
+[node name="Paper" type="MeshInstance3D" parent="."]
+mesh = SubResource("Box_paper")
+
+[node name="Title" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.19, 0.008)
+pixel_size = 0.0012
+modulate = Color(0.25, 0.13, 0.06, 1)
+outline_modulate = Color(0, 0, 0, 0)
+text = "WANTED"
+font_size = 64
+outline_size = 0
+
+[node name="Portrait" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.01, 0.007)
+mesh = SubResource("Box_portrait")
+
+[node name="Unknown" type="Label3D" parent="Portrait"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.004)
+pixel_size = 0.0012
+modulate = Color(0.86, 0.78, 0.6, 1)
+outline_modulate = Color(0, 0, 0, 0)
+text = "?"
+font_size = 120
+outline_size = 0
+
+[node name="Reward" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.2, 0.008)
+pixel_size = 0.0012
+modulate = Color(0.25, 0.13, 0.06, 1)
+outline_modulate = Color(0, 0, 0, 0)
+text = "REWARD"
+font_size = 40
+outline_size = 0
+
+[node name="Knife" parent="." instance=ExtResource("2_knife")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.265, 0.03)
