@@ -1,0 +1,35 @@
+# Keep LF line endings for every text file, which is what Godot writes.
+# This stops Windows checkouts from converting Godot files to CRLF.
+* text=auto eol=lf
+
+# Godot text formats (listed explicitly so they're always treated as text)
+*.gd text eol=lf
+*.gdshader text eol=lf
+*.tscn text eol=lf
+*.tres text eol=lf
+*.godot text eol=lf
+*.cfg text eol=lf
+*.import text eol=lf
+*.uid text eol=lf
+*.svg text eol=lf
+*.md text eol=lf
+
+# Binary assets: never touch line endings or try to diff them
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.exr binary
+*.hdr binary
+*.glb binary
+*.gltf text eol=lf
+*.bin binary
+*.fbx binary
+*.blend binary
+*.obj text eol=lf
+*.wav binary
+*.ogg binary
+*.mp3 binary
+*.ttf binary
+*.otf binary
+*.zip binary
