@@ -51,6 +51,10 @@ If a PC has a touch screen, the last thing you used wins: touching the screen sh
 - **`scenes/dummy.tscn`** + **`scripts/dummy.gd`**: a straw training dummy that walks at the knight and swings at him. Health 100, so two knife hits. The first hit knocks it into a ragdoll; it lies there for a moment, then pulls itself back together. The second hit makes it fall apart. Speed, damage and timings are on the `Dummy` node in the Inspector. Its body is built in code, so in the editor you only see its collision capsule.
 - **`scripts/crosshair.gd`**: the aiming dot in the middle of the screen.
 - **`scripts/wave_manager.gd`** (the `WaveManager` node in `forest.tscn`): runs waves 1 to 19. See **Waves** below.
+- **`scripts/game_config.gd`**: **every number worth tuning, in one file**: health, damage, time ramp, breaks, army size, rescue count, soldier stats (and, from M5.5, loot and recipes). Nodes' Inspector settings take their defaults from here.
+- **`scripts/army.gd`** (the `Army` node) + **`scenes/soldier.tscn`** + **`scripts/soldier.gd`**: the knight's army. See **The army** below.
+- **`scenes/arrow.tscn`** + **`scripts/arrow.gd`**: arrows shot by archers.
+- **`scripts/debug_keys.gd`** (the `DebugKeys` node): testing shortcuts (see below).
 - **`scripts/mini_bosses.gd`**: the 19 mini bosses: names, colours, headgear and stats. Mini bosses use the dummy scene and script, made bigger and tougher.
 - **`scripts/world_time.gd`**: the time mechanic (autoload, reachable from any script as `WorldTime`). See below.
 - **`scenes/swinging_log.tscn`** + **`scripts/swinging_log.gd`**: a log on two ropes in front of the start point, for checking that the world slows down.
@@ -95,6 +99,28 @@ The "World time" readout in the top-left corner shows the current speed. Turn it
 - Select the `WaveManager` node in `forest.tscn` and set **Start Wave** in the Inspector (1 to 19). The game then begins at that wave.
 - While running from the editor (debug builds only): **F2** skips to the next wave straight away, and **F3** ends a break early, or removes the current dummies so the mini boss comes out.
 
+## The army
+
+- The army starts with **25 soldiers** (`ARMY_SIZE`), split evenly: archers, spearmen and sword fighters. All wear bright blue tabards with gold trim.
+- The first time the knight drops to **half health in a wave**, **4 soldiers** (`RESCUE_COUNT`) from the roster appear around him and fight. Only one rescue per wave.
+- **Archers** keep 8 to 14 m from their target and shoot arrows. **Spearmen** and **sword fighters** close in. Soldiers can't hurt the knight, and his knives fly through them.
+- Dummies attack whoever is nearest, the knight or a soldier. A soldier who dies is **gone for the rest of the run**.
+- When the wave is cleared, survivors go back to the roster.
+- Soldiers more than 25 m from the knight think less often and skip their walk animation.
+- The counter in the top-left shows how many are left, by role.
+
+## Testing shortcuts
+
+These work when running from the editor (debug builds only):
+
+| Key | What it does |
+| --- | --- |
+| F2 | Skip to the next wave straight away |
+| F3 | End a break early, or remove this wave's dummies so the mini boss comes out |
+| F4 | Drop the knight to half health (during a wave this brings in the army) |
+
+You can also start at a later wave: select the `WaveManager` node in `forest.tscn` and set **Start Wave**.
+
 ## Physics layers
 
 | Layer | Name | Used by |
@@ -104,6 +130,7 @@ The "World time" readout in the top-left corner shows the current speed. Turn it
 | 3 | boundary | The invisible wall at the forest edge (stops the knight and dummies, not knives) |
 | 4 | dummies | Walking dummies |
 | 5 | debris | Ragdoll pieces (knives hit them; the knight walks through them) |
+| 6 | allies | Soldiers (dummies bump into them; knives and arrows fly through) |
 
 ## Install export templates first
 

@@ -7,9 +7,10 @@ extends Node3D
 ## manager calls show_mini_boss() on every poster when a new boss is coming.
 
 const MiniBosses := preload("res://scripts/mini_bosses.gd")
+const Config := preload("res://scripts/game_config.gd")
 
 ## Seconds (world time) before a new knife appears after one is pulled out.
-@export var respawn_delay := 5.0
+@export var respawn_delay := Config.POSTER_RESPAWN_DELAY
 
 var has_knife := true
 

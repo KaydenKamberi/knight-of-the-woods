@@ -51,8 +51,8 @@ script = ExtResource("3_crosshair")
 [node name="Status" type="VBoxContainer" parent="."]
 offset_left = 24.0
 offset_top = 20.0
-offset_right = 304.0
-offset_bottom = 120.0
+offset_right = 504.0
+offset_bottom = 160.0
 mouse_filter = 2
 theme_override_constants/separation = 6
 
@@ -81,6 +81,14 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
 theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 18
 text = "World time 100%"
+
+[node name="ArmyLabel" type="Label" parent="Status"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.78, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 18
+text = "Army 25"
 
 [node name="ShiftLockLabel" type="Label" parent="Status"]
 visible = false
@@ -173,6 +181,21 @@ theme_override_font_sizes/font_size = 64
 text = "Wave 1"
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="Toasts" type="VBoxContainer" parent="."]
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -560.0
+offset_top = -40.0
+offset_right = -150.0
+offset_bottom = 160.0
+grow_horizontal = 0
+grow_vertical = 2
+mouse_filter = 2
+alignment = 2
 
 [node name="TouchControls" type="Control" parent="."]
 visible = false

@@ -1,0 +1,47 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/arrow.gd" id="1_arrow"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_shaft"]
+albedo_color = Color(0.6, 0.45, 0.28, 1)
+roughness = 1.0
+
+[sub_resource type="StandardMaterial3D" id="Mat_head"]
+albedo_color = Color(0.7, 0.72, 0.76, 1)
+metallic = 0.6
+roughness = 0.4
+
+[sub_resource type="StandardMaterial3D" id="Mat_feather"]
+albedo_color = Color(0.92, 0.92, 0.95, 1)
+roughness = 1.0
+
+[sub_resource type="BoxMesh" id="Box_shaft"]
+material = SubResource("Mat_shaft")
+size = Vector3(0.018, 0.018, 0.62)
+
+[sub_resource type="PrismMesh" id="Prism_head"]
+material = SubResource("Mat_head")
+size = Vector3(0.05, 0.08, 0.012)
+
+[sub_resource type="BoxMesh" id="Box_feather"]
+material = SubResource("Mat_feather")
+size = Vector3(0.002, 0.05, 0.12)
+
+[node name="Arrow" type="Node3D"]
+script = ExtResource("1_arrow")
+
+[node name="Shaft" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.38)
+mesh = SubResource("Box_shaft")
+
+[node name="Head" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0.04)
+mesh = SubResource("Prism_head")
+
+[node name="FeatherA" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.62)
+mesh = SubResource("Box_feather")
+
+[node name="FeatherB" type="MeshInstance3D" parent="."]
+transform = Transform3D(0, -1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0.62)
+mesh = SubResource("Box_feather")

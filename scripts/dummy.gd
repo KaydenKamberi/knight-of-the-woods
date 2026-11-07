@@ -1,7 +1,8 @@
 extends CharacterBody3D
 ## A floppy straw training dummy that has come to life (PRD E-1, E-2, E-3).
 ##
-## It walks straight at the knight and swings at him when close. A knife hit
+## It walks straight at the nearest target (the knight, or a soldier from his
+## army) and swings at it when close. A hit
 ## knocks it into ragdoll physics: it flops to the ground, then pulls itself
 ## back together and keeps coming. When its health runs out it goes fully
 ## ragdoll and falls apart into pieces.
@@ -25,15 +26,16 @@ enum State { WALKING, ATTACKING, RAGDOLL, REASSEMBLING, DEFEATED }
 const WORLD_LAYER := 1
 const DEBRIS_LAYER := 16
 const MiniBosses := preload("res://scripts/mini_bosses.gd")
+const Config := preload("res://scripts/game_config.gd")
 
-@export var max_health := 100
+@export var max_health := Config.DUMMY_HEALTH
 @export var walk_speed := 2.2
 @export var turn_speed := 6.0
 
 @export_group("Attack")
 ## How close the dummy has to be to swing at the knight, in metres.
 @export var attack_range := 1.4
-@export var attack_damage := 10
+@export var attack_damage := Config.DUMMY_DAMAGE
 ## Seconds of wind-up before a swing lands. In slow motion that's plenty of time to react.
 @export var attack_windup := 0.6
 ## Seconds after a swing before the dummy walks again.
@@ -63,7 +65,9 @@ var state := State.WALKING
 var is_mini_boss := false
 var boss_name := ""
 
-var _player = null
+## What it's walking at: the knight or a soldier (anything in the "dummy_targets" group).
+var _target = null
+var _retarget_left := 0.0
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 ## One entry per body part: its spec plus "pivot", "mesh", "rest" and "body".
 var _parts: Array[Dictionary] = []
@@ -122,10 +126,29 @@ func _physics_process(delta: float) -> void:
 				_fall_apart()
 
 
-## Called by a knife that hits this dummy (or one of its ragdoll pieces).
-## Returns the body part the knife should stick into.
-func take_knife_hit(collider: Object, point: Vector3, direction: Vector3, damage: int, push: float) -> Node3D:
+func is_alive() -> bool:
+	return state != State.DEFEATED
+
+
+## Called by a melee hit (a soldier's sword, and later the knight's weapons).
+## `from` is where the hit came from.
+func take_hit(damage: int, from: Vector3, push := 3.0) -> void:
+	var aim := global_position + Vector3.UP * 1.2 * size_scale
+	var direction := aim - from
+	direction.y = 0.0
+	direction = direction.normalized() if direction.length_squared() > 0.0001 else -_body.global_basis.z
+	_apply_hit(_find_part("torso"), damage, direction, push)
+
+
+## Called by a knife or arrow that hits this dummy (or one of its ragdoll pieces).
+## Returns the body part the projectile should stick into.
+func take_projectile_hit(collider: Object, point: Vector3, direction: Vector3, damage: int, push: float) -> Node3D:
 	var part := _part_hit_by(collider, point)
+	_apply_hit(part, damage, direction, push)
+	return part["mesh"]
+
+
+func _apply_hit(part: Dictionary, damage: int, direction: Vector3, push: float) -> void:
 	if state != State.DEFEATED:
 		health = maxi(health - damage, 0)
 		health_changed.emit(health, max_health)
@@ -144,25 +167,23 @@ func take_knife_hit(collider: Object, point: Vector3, direction: Vector3, damage
 	var body: RigidBody3D = part["body"]
 	if body != null:
 		body.linear_velocity += direction * push + Vector3.UP
-	return part["mesh"]
 
 
 # --- Walking and attacking ---------------------------------------------------
 
 func _walk(delta: float) -> void:
-	if _player == null:
-		_player = get_tree().get_first_node_in_group("player")
-	var has_target: bool = _player != null and _player.is_alive()
-	var to_player := Vector3.ZERO
+	_update_target(delta)
+	var has_target: bool = _target != null
+	var to_target := Vector3.ZERO
 	if has_target:
-		to_player = _player.global_position - global_position
-		to_player.y = 0.0
-	var distance := to_player.length()
+		to_target = _target.global_position - global_position
+		to_target.y = 0.0
+	var distance := to_target.length()
 
 	var direction := Vector3.ZERO
 	_stagger_left = maxf(_stagger_left - delta, 0.0)
 	if has_target and distance > attack_range * 0.8 and _stagger_left == 0.0:
-		direction = to_player / distance
+		direction = to_target / distance
 		if _detour_time > 0.0:
 			# Stuck on a tree or rock: walk off to one side for a moment.
 			_detour_time -= delta
@@ -181,7 +202,7 @@ func _walk(delta: float) -> void:
 			_detour_time = 1.0
 			_detour_side = -1.0 if randf() < 0.5 else 1.0
 
-	_turn_towards(to_player if has_target else direction, delta)
+	_turn_towards(to_target if has_target else direction, delta)
 	_animate_walk(delta, Vector2(velocity.x, velocity.z).length() / walk_speed)
 	if has_target and distance <= attack_range:
 		_start(State.ATTACKING)
@@ -193,11 +214,13 @@ func _attack(delta: float) -> void:
 	_apply_gravity(delta)
 	move_and_slide()
 
-	var to_player := Vector3.ZERO
-	if _player != null:
-		to_player = _player.global_position - global_position
-		to_player.y = 0.0
-	_turn_towards(to_player, delta)
+	if not _is_good_target(_target):
+		_target = null
+	var to_target := Vector3.ZERO
+	if _target != null:
+		to_target = _target.global_position - global_position
+		to_target.y = 0.0
+	_turn_towards(to_target, delta)
 	_animate_walk(delta, 0.0)
 
 	# Raise both arms during the wind-up, then bring them down hard.
@@ -206,8 +229,8 @@ func _attack(delta: float) -> void:
 		_set_arm_angle(lerpf(0.0, arms_up, clampf(_state_time / attack_windup, 0.0, 1.0)))
 		if _state_time >= attack_windup:
 			_swung = true
-			if _player != null and _player.is_alive() and to_player.length() <= attack_range + 0.4:
-				_player.take_damage(attack_damage, global_position)
+			if _target != null and to_target.length() <= attack_range + 0.4:
+				_target.take_damage(attack_damage, global_position, self)
 	else:
 		_set_arm_angle(lerpf(arms_up, 0.3, clampf((_state_time - attack_windup) / 0.15, 0.0, 1.0)))
 		if _state_time >= attack_windup + attack_cooldown:
@@ -222,6 +245,28 @@ func _flinch() -> void:
 	_flinch_tween = create_tween()
 	_flinch_tween.tween_property(_body, "rotation:x", 0.3, 0.08)
 	_flinch_tween.tween_property(_body, "rotation:x", 0.0, 0.25)
+
+
+## Picks the nearest knight or soldier every half second (or sooner if the current one falls).
+func _update_target(delta: float) -> void:
+	_retarget_left -= delta
+	if _retarget_left > 0.0 and _is_good_target(_target):
+		return
+	_retarget_left = 0.5
+	_target = null
+	var nearest_distance := INF
+	var targets: Array = get_tree().get_nodes_in_group("dummy_targets")
+	for candidate in targets:
+		if not candidate.is_alive():
+			continue
+		var distance: float = global_position.distance_squared_to(candidate.global_position)
+		if distance < nearest_distance:
+			_target = candidate
+			nearest_distance = distance
+
+
+func _is_good_target(candidate) -> bool:
+	return is_instance_valid(candidate) and candidate.is_alive()
 
 
 func _start(new_state: State) -> void:
@@ -325,9 +370,9 @@ func _reassemble() -> void:
 	var spot := pelvis.global_position
 	spot.y = global_position.y
 	global_position = spot
-	if _player != null:
-		var to_player: Vector3 = _player.global_position - global_position
-		_body.rotation.y = atan2(-to_player.x, -to_player.z)
+	if _is_good_target(_target):
+		var to_target: Vector3 = _target.global_position - global_position
+		_body.rotation.y = atan2(-to_target.x, -to_target.z)
 
 	_reassemble_tween = create_tween().set_parallel()
 	for part in _parts:

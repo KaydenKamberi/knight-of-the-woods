@@ -88,6 +88,7 @@ shift_lock={
 3d_physics/layer_3="boundary"
 3d_physics/layer_4="dummies"
 3d_physics/layer_5="debris"
+3d_physics/layer_6="allies"
 
 [rendering]
 

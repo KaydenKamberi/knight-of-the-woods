@@ -20,22 +20,24 @@ extends Node
 ## The knight calls report_moving() every frame a move key or the joystick is
 ## held, and bump() when he throws or grabs a knife.
 
-# --- Tuning: change these numbers to adjust how the mechanic feels ----------
+const Config := preload("res://scripts/game_config.gd")
+
+# --- Tuning: the starting values live in scripts/game_config.gd ---------------
 
 ## World speed while the player stands still. 0.05 means 5% speed (T-1).
-var slow_speed := 0.05
+var slow_speed := Config.TIME_SLOW_SPEED
 ## How much each ramp step adds while a move key is held. 0.1 means +10% (T-2).
-var step_size := 0.1
+var step_size := Config.TIME_STEP_SIZE
 ## Real seconds between ramp steps while a move key is held.
-var step_interval := 0.3
+var step_interval := Config.TIME_STEP_INTERVAL
 ## How much each step takes away after the move key is let go.
-var drop_step_size := 0.1
+var drop_step_size := Config.TIME_DROP_STEP_SIZE
 ## Real seconds between steps back down after letting go.
-var drop_step_interval := 0.1
+var drop_step_interval := Config.TIME_DROP_STEP_INTERVAL
 ## World speed during a bump from throwing or grabbing (never lowers the current speed).
-var bump_speed := 0.6
+var bump_speed := Config.TIME_BUMP_SPEED
 ## Real seconds a bump lasts.
-var bump_time := 0.4
+var bump_time := Config.TIME_BUMP_TIME
 ## Set to true to let turning the camera ramp time too (the old K-2 behaviour).
 var look_counts_as_moving := false
 ## Set to false to turn the mechanic off and keep time at full speed (handy for testing).

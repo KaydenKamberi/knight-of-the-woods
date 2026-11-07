@@ -9,6 +9,7 @@ extends CanvasLayer
 ##   touch controls, and typing or clicking a real mouse switches back.
 ## - Wave counter, dummies left, break countdown, a "Wave X" banner and the
 ##   mini boss's health bar (M4), fed by the wave manager.
+## - Army counter (A-5) and short messages when soldiers arrive or fall.
 ## - Game-over screen with a Restart button when the knight falls, and the
 ##   "Final battle coming soon" screen after wave 19.
 
@@ -47,6 +48,8 @@ var _banner_tween: Tween
 @onready var _boss_name_label: Label = $WaveInfo/BossName
 @onready var _boss_bar: ProgressBar = $WaveInfo/BossBar
 @onready var _banner: Label = $Banner
+@onready var _army_label: Label = $Status/ArmyLabel
+@onready var _toasts: VBoxContainer = $Toasts
 
 
 func _ready() -> void:
@@ -103,6 +106,40 @@ func set_pickup_prompt(prompt: String) -> void:
 ## Freezes the game and shows the game-over screen.
 func show_game_over() -> void:
 	_show_end_screen("You have fallen", "The dummies got the better of you.")
+
+
+# --- Called by the army (connected in forest.tscn) ---------------------------------
+
+func on_army_changed(total: int, in_field: int, counts: Dictionary) -> void:
+	var text := "Army %d  (%d archers · %d spears · %d swords)" % [
+			total, counts["archer"], counts["spear"], counts["sword"]]
+	if in_field > 0:
+		text += "  ·  %d fighting" % in_field
+	_army_label.text = text
+
+
+func on_rescue_arrived(count: int) -> void:
+	show_toast("%d soldiers rush in to help!" % count)
+
+
+func on_soldier_fell(role: String) -> void:
+	var names := {"archer": "An archer", "spear": "A spearman", "sword": "A sword fighter"}
+	show_toast("%s has fallen" % names.get(role, "A soldier"))
+
+
+## A short message on the right side of the screen that fades away.
+func show_toast(text: String) -> void:
+	var label := Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	label.add_theme_font_size_override("font_size", 22)
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	label.add_theme_constant_override("outline_size", 6)
+	_toasts.add_child(label)
+	var fade := label.create_tween().set_ignore_time_scale(true)
+	fade.tween_interval(2.5)
+	fade.tween_property(label, "modulate:a", 0.0, 0.6)
+	fade.tween_callback(label.queue_free)
 
 
 # --- Called by the wave manager (connected in forest.tscn) ------------------------

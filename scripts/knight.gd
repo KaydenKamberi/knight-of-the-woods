@@ -32,6 +32,7 @@ signal died
 ## inside of the helmet doesn't block the view.
 const KNIGHT_RENDER_LAYER := 2
 const KNIFE_SCENE := preload("res://scenes/throwing_knife.tscn")
+const Config := preload("res://scripts/game_config.gd")
 ## Physics layers the aim ray can hit: world (1), dummies (4) and debris (5).
 const AIM_MASK := 1 | 8 | 16
 ## Seconds the throwing arm takes to come down after a throw.
@@ -61,9 +62,9 @@ const THROW_ANIMATION_TIME := 0.25
 @export var switch_time := 0.15
 
 @export_group("Combat")
-@export var max_health := 100
+@export var max_health := Config.PLAYER_HEALTH
 ## How many knives the knight can carry at once.
-@export var max_knives := 3
+@export var max_knives := Config.MAX_KNIVES
 ## How close (in metres) a knife has to be to grab it.
 @export var pickup_range := 2.0
 ## How hard a dummy's hit shoves the knight back, in metres per second.
@@ -101,6 +102,8 @@ var _pickup_in_reach = null
 
 func _ready() -> void:
 	add_to_group("player")
+	# Dummies go for whoever is nearest: the knight or one of his soldiers.
+	add_to_group("dummy_targets")
 	health = max_health
 	_arm.spring_length = third_person_distance
 	_arm.position = _shoulder_position()
@@ -179,8 +182,9 @@ func is_alive() -> bool:
 	return not _dead
 
 
-## Called by dummies when their swing lands. `from` is where the hit came from.
-func take_damage(amount: int, from: Vector3) -> void:
+## Called by dummies when their swing lands. `from` is where the hit came from,
+## and `attacker` is who swung (used by Cryo armor later).
+func take_damage(amount: int, from: Vector3, _attacker = null) -> void:
 	if _dead:
 		return
 	health = maxi(health - amount, 0)
@@ -191,6 +195,14 @@ func take_damage(amount: int, from: Vector3) -> void:
 		velocity += away.normalized() * knockback_speed
 	if health == 0:
 		_die()
+
+
+## Sets health directly (used by the debug shortcuts).
+func debug_set_health(value: int) -> void:
+	if _dead:
+		return
+	health = clampi(value, 1, max_health)
+	health_changed.emit(health, max_health)
 
 
 ## Throws a knife at whatever is under the crosshair (W-3).

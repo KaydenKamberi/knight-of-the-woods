@@ -25,22 +25,23 @@ enum Phase { BREAK, DUMMIES, MINI_BOSS_COMING, MINI_BOSS, DONE }
 
 const DUMMY_SCENE := preload("res://scenes/dummy.tscn")
 const MiniBosses := preload("res://scripts/mini_bosses.gd")
+const Config := preload("res://scripts/game_config.gd")
 
 ## The first wave to play. Set it higher to test later waves.
 @export_range(1, 19) var start_wave := 1
 @export var last_wave := 19
 ## Wave n has this many dummies times n (V-1).
-@export var dummies_per_wave := 2
+@export var dummies_per_wave := Config.DUMMIES_PER_WAVE
 
 @export_group("Breaks")
 ## Seconds before wave 1 (or Start Wave) begins, to grab a knife.
-@export var first_break := 10.0
+@export var first_break := Config.FIRST_BREAK
 ## Break after wave 1, in seconds.
-@export var shortest_break := 30.0
+@export var shortest_break := Config.SHORTEST_BREAK
 ## Break after last_break_wave, in seconds. Breaks in between grow evenly.
-@export var longest_break := 60.0
+@export var longest_break := Config.LONGEST_BREAK
 ## The last wave with a break after it (R-4: none from wave 15 on).
-@export var last_break_wave := 14
+@export var last_break_wave := Config.LAST_BREAK_WAVE
 ## Breaks count down in world time, so standing still stretches them out.
 ## Turn this off to count breaks in real seconds instead.
 @export var breaks_use_world_time := true

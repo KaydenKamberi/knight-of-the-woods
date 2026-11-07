@@ -14,13 +14,14 @@ extends Node3D
 const HIT_MASK := 1 | 8 | 16
 ## Distance from the guard to the tip of the blade, in metres.
 const BLADE_LENGTH := 0.25
+const Config := preload("res://scripts/game_config.gd")
 
 @export var speed := 26.0
 ## How fast the knife drops while flying, in metres per second per second.
 @export var drop := 4.0
 ## Spin speed in radians per second.
 @export var spin_speed := 22.0
-@export var damage := 50
+@export var damage := Config.KNIFE_DAMAGE
 ## Speed added to whatever loose body the knife hits, in metres per second.
 @export var hit_push := 5.0
 ## How deep the blade sinks into what it hits, in metres.
@@ -101,7 +102,7 @@ func _on_hit(collider: Object, point: Vector3, direction: Vector3) -> void:
 		var target = _damage_target(collider)
 		if target != null:
 			# The target decides which of its parts the knife sticks in.
-			stick_to = target.take_knife_hit(collider, point, direction, damage, hit_push)
+			stick_to = target.take_projectile_hit(collider, point, direction, damage, hit_push)
 			if stick_to is Node3D:
 				_sink_towards((stick_to as Node3D).global_position, direction)
 		elif collider is RigidBody3D:
@@ -126,7 +127,7 @@ func _sink_towards(center: Vector3, direction: Vector3) -> void:
 
 ## Returns the thing that should take damage from this hit, or null.
 func _damage_target(collider: Object):
-	if collider.has_method("take_knife_hit"):
+	if collider.has_method("take_projectile_hit"):
 		return collider
 	if collider.has_meta("dummy"):
 		var dummy = collider.get_meta("dummy")
