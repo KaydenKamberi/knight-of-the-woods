@@ -6,13 +6,18 @@ extends Control
 ## then the furnace (built once) and smelting (1 raw iron + 1 coal = 1 iron)
 ## once the furnace exists. Rows update whenever the inventory changes.
 ##
-## The panel is sized from the screen (80% wide, 88% tall, centred), and every
-## description and cost wraps, so a row can never be wider than the panel.
+## The menu fills the screen (re-filling it if the window is resized). The
+## panel sits in a CenterContainer, so it's always in the middle, at PANEL_SIZE
+## but never more than 90% of the screen. Every name, description and cost
+## wraps, so a row can never be wider than the panel.
 
 signal close_requested
 
 const Config := preload("res://scripts/game_config.gd")
 const Inventory := preload("res://scripts/inventory.gd")
+## The panel's size, shrunk if the screen is smaller (never more than 90% of it).
+const PANEL_SIZE := Vector2(900, 600)
+const MAX_SCREEN_SHARE := 0.9
 ## What each item does, shown under its name.
 const DESCRIPTIONS := {
 	"spear": "60 damage · long reach, hits before enemies get close",
@@ -26,6 +31,7 @@ const DESCRIPTIONS := {
 }
 
 var _inventory = null
+var _panel: PanelContainer
 var _materials_label: Label
 var _rows := {}
 var _furnace_button: Button
@@ -35,15 +41,38 @@ var _smelt_all: Button
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_build()
+	_fit_to_screen()
+	get_viewport().size_changed.connect(_fit_to_screen)
 	_connect_inventory.call_deferred()
 
 
 func open() -> void:
+	_fit_to_screen()
 	visible = true
 	refresh()
+	print("[CRAFT] viewport=", get_viewport_rect().size, " root=", get_rect(), " panel=", _panel.get_global_rect())
+	# Containers lay out just after this, so print the settled numbers again next frame.
+	if not get_tree().process_frame.is_connected(_print_layout):
+		get_tree().process_frame.connect(_print_layout, CONNECT_ONE_SHOT)
+
+
+## Fills the whole screen and sizes the panel for it. (set_anchors_preset alone
+## keeps the old size, which for a Control made in code is 0 x 0, so the offsets
+## have to be reset too.)
+func _fit_to_screen() -> void:
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var screen := get_viewport_rect().size
+	_panel.custom_minimum_size = Vector2(
+			minf(PANEL_SIZE.x, screen.x * MAX_SCREEN_SHARE),
+			minf(PANEL_SIZE.y, screen.y * MAX_SCREEN_SHARE))
+
+
+## Temporary layout check: the root should match the viewport and the panel should
+## be centred in it.
+func _print_layout() -> void:
+	print("[CRAFT] laid out: viewport=", get_viewport_rect().size, " root=", get_rect(), " panel=", _panel.get_global_rect())
 
 
 func refresh() -> void:
@@ -77,22 +106,17 @@ func _connect_inventory() -> void:
 func _build() -> void:
 	var dim := ColorRect.new()
 	dim.color = Color(0.02, 0.02, 0.03, 0.85)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	# Sized from the screen, not fixed pixels: 10% margin left and right, 6% top and bottom.
+	# The CenterContainer fills the screen and keeps the panel in its middle.
+	var center := CenterContainer.new()
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
 	var panel := PanelContainer.new()
-	panel.anchor_left = 0.1
-	panel.anchor_right = 0.9
-	panel.anchor_top = 0.06
-	panel.anchor_bottom = 0.94
-	panel.offset_left = 0.0
-	panel.offset_right = 0.0
-	panel.offset_top = 0.0
-	panel.offset_bottom = 0.0
-	# If the content ever needs more room, grow evenly both ways instead of off one edge.
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
+	_panel = panel
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.1, 0.08, 0.95)
 	style.border_color = Color(0.75, 0.6, 0.3)
@@ -100,14 +124,14 @@ func _build() -> void:
 	style.set_corner_radius_all(8)
 	style.set_content_margin_all(18)
 	panel.add_theme_stylebox_override("panel", style)
-	add_child(panel)
+	center.add_child(panel)
 
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 8)
 	panel.add_child(column)
 	column.add_child(_label("Crafting", 34, Color(1, 0.88, 0.6)))
 	_materials_label = _label("", 17, Color(0.85, 0.9, 1.0))
-	_materials_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_wrap(_materials_label)
 	column.add_child(_materials_label)
 
 	var scroll := ScrollContainer.new()
