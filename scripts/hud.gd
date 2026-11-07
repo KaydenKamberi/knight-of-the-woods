@@ -26,6 +26,7 @@ const TouchControls := preload("res://scripts/touch_controls.gd")
 const CraftingMenu := preload("res://scripts/crafting_menu.gd")
 const FurnaceMenu := preload("res://scripts/furnace_menu.gd")
 const PauseMenu := preload("res://scripts/pause_menu.gd")
+const ArmorIcon := preload("res://scripts/armor_icon.gd")
 const TITLE_SCENE := "res://scenes/title.tscn"
 const Config := preload("res://scripts/game_config.gd")
 const HOTBAR_SLOTS := 9
@@ -44,6 +45,7 @@ var _knives_left := 0
 var _crafting_menu: CraftingMenu
 var _furnace_menu: FurnaceMenu
 var _pause_menu: PauseMenu
+var _armor_badge: HBoxContainer
 ## True during the victory camera pan (no pausing then).
 var _in_cutscene := false
 var _final_wave := false
@@ -98,6 +100,7 @@ func _ready() -> void:
 	_pause_menu.main_menu_requested.connect(go_to_main_menu)
 	add_child(_pause_menu)
 	_build_hotbar()
+	_build_armor_badge()
 	_furnace_menu = FurnaceMenu.new()
 	_furnace_menu.name = "FurnaceMenu"
 	_furnace_menu.visible = false
@@ -166,6 +169,30 @@ func set_health(health: int, max_health: int) -> void:
 func set_knives(count: int, max_count: int) -> void:
 	_knife_label.text = "Knives %d / %d" % [count, max_count]
 	_knives_left = count
+
+
+## Shows the Cryo armour icon while the armour is on (X-2). Connected to the knight.
+func set_armor(equipped: bool) -> void:
+	_armor_badge.visible = equipped
+
+
+func _build_armor_badge() -> void:
+	_armor_badge = HBoxContainer.new()
+	_armor_badge.name = "ArmorBadge"
+	_armor_badge.visible = false
+	_armor_badge.add_theme_constant_override("separation", 6)
+	_armor_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var icon := ArmorIcon.new()
+	icon.custom_minimum_size = Vector2(20, 24)
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_armor_badge.add_child(icon)
+	var label := Label.new()
+	label.text = "Cryo armour"
+	label.add_theme_font_size_override("font_size", 18)
+	label.add_theme_color_override("font_color", Color(0.72, 0.9, 1.0))
+	label.add_theme_constant_override("outline_size", 5)
+	_armor_badge.add_child(label)
+	_status.add_child(_armor_badge)
 
 
 func set_shift_lock(enabled: bool) -> void:

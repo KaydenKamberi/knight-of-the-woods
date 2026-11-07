@@ -61,6 +61,20 @@ static func theme() -> Theme:
 	_theme.set_color("font_color", "Label", PARCHMENT)
 	_theme.set_color("font_outline_color", "Label", Color(0, 0, 0, 0.75))
 
+	# A visible gold scrollbar, so long lists show there's more below.
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0, 0, 0, 0.35)
+	track.set_corner_radius_all(4)
+	track.content_margin_left = 6
+	track.content_margin_right = 6
+	var grabber := StyleBoxFlat.new()
+	grabber.bg_color = gold.darkened(0.15)
+	grabber.set_corner_radius_all(4)
+	_theme.set_stylebox("scroll", "VScrollBar", track)
+	_theme.set_stylebox("grabber", "VScrollBar", grabber)
+	_theme.set_stylebox("grabber_highlight", "VScrollBar", grabber)
+	_theme.set_stylebox("grabber_pressed", "VScrollBar", grabber)
+
 	var bar_back := StyleBoxFlat.new()
 	bar_back.bg_color = Color(0, 0, 0, 0.5)
 	bar_back.set_corner_radius_all(6)

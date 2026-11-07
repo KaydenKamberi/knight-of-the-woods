@@ -90,7 +90,7 @@ static func blaster_trail(node: Node3D) -> void:
 
 
 ## Frost drifting off a frozen enemy. Returns the emitter so it can be removed when it thaws.
-static func frost_on(body: Node3D, size := 1.0) -> Node3D:
+static func frost_on(body: Node3D, size := 1.0) -> CPUParticles3D:
 	var frost := _emitter({"amount": 10, "life": 1.0, "speed": Vector2(0.1, 0.4), "gravity": -0.5,
 			"color": Color(0.9, 0.97, 1.0, 0.85), "size": 0.06 * size, "fade": true})
 	frost.one_shot = false

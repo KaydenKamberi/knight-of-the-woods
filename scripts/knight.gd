@@ -26,6 +26,8 @@ extends CharacterBody3D
 ## Sent whenever the view changes. true means first person (inside the helmet).
 signal view_changed(first_person: bool)
 signal shift_lock_changed(enabled: bool)
+## Sent when the Cryo armour goes on (for the HUD's armour icon).
+signal armor_changed(equipped: bool)
 signal health_changed(health: int, max_health: int)
 signal knives_changed(count: int, max_count: int)
 ## Sent when what's in reach changes: a knife to grab, or the furnace to build or
@@ -106,6 +108,7 @@ var _was_on_floor := true
 var _fall_speed := 0.0
 var _dust_left := 0.0
 var _armor_shown := false
+var _armor_frost: CPUParticles3D
 
 ## The Weapons child node (knight_weapons.gd): hotbar, attacks and the hammer's specials.
 @onready var weapons = $Weapons
@@ -133,6 +136,11 @@ func _ready() -> void:
 	_pitch_pivot.position.y = third_person_height
 	_pitch_pivot.rotation.x = _pitch
 	_set_helmet_view(false)
+	# The eye slit's material is shared between game restarts, so a new game
+	# always starts without the Cryo armour frost.
+	var slit_material := _eye_slit.material as ShaderMaterial
+	if slit_material != null:
+		slit_material.set_shader_parameter("frost", 0.0)
 	# Wait until the whole scene is ready, so the HUD is there to hear it.
 	_announce_status.call_deferred()
 	_watch_inventory.call_deferred()
@@ -455,14 +463,62 @@ func _has_armor() -> bool:
 	return armored
 
 
-## Tints the knight's steel icy blue once he wears Cryo armour.
+## Puts the Cryo armour on the knight (X-2): icy blue low-poly pieces with a
+## soft frost glow (chest plate, shoulder pads, arm and leg guards), frost
+## drifting off them now and then (not on Low), and a frosty eye slit in first
+## person. The pieces sit on the knight's limbs, so they move with his walk.
+## They're on the knight's render layer, so first person hides them like the
+## rest of his body. A new game (Try Again) starts without them.
 func _show_armor() -> void:
 	_armor_shown = true
-	var torso := $Model/Torso as MeshInstance3D
-	var steel := (torso.mesh as PrimitiveMesh).material
-	if steel != null:
-		Art.set_color(steel, ICE_ARMOR_COLOR)
-		Art.set_emission(steel, ICE_ARMOR_COLOR, 0.25)
+	var ice := Art.material(ICE_ARMOR_COLOR, {"rim": true, "emission": ICE_ARMOR_COLOR, "energy": 0.35})
+	var ice_dark := Art.material(ICE_ARMOR_COLOR.darkened(0.25), {"rim": true, "emission": ICE_ARMOR_COLOR, "energy": 0.2})
+	# Chest plate over the tabard, with a raised ridge down the middle.
+	_armor_piece(_model, Vector3(0.5, 0.42, 0.04), Vector3(0, 1.2, -0.215), ice)
+	_armor_piece(_model, Vector3(0.07, 0.36, 0.03), Vector3(0, 1.2, -0.245), ice_dark)
+	for side in [-1.0, 1.0]:
+		# Shoulder pads, tipped outwards, each with a crystal spike.
+		var pad := _armor_piece(_model, Vector3(0.27, 0.1, 0.38), Vector3(0.37 * side, 1.52, 0), ice)
+		pad.rotation.z = -0.25 * side
+		var spike := _armor_piece(_model, Vector3(0.06, 0.16, 0.06), Vector3(0.42 * side, 1.62, 0), ice_dark)
+		spike.rotation = Vector3(0.0, PI / 4.0, -0.3 * side)
+	# Forearm guards and shin guards ride on the arm and leg pivots.
+	for arm in [_left_arm, _right_arm]:
+		_armor_piece(arm, Vector3(0.19, 0.24, 0.2), Vector3(0, -0.42, 0), ice)
+	for leg in [_left_leg, _right_leg]:
+		_armor_piece(leg, Vector3(0.22, 0.3, 0.05), Vector3(0, -0.55, -0.125), ice)
+	# Frost drifting off the armour now and then (off on Low).
+	_armor_frost = Fx.frost_on(_model, 0.9)
+	_armor_frost.amount = 4
+	_armor_frost.lifetime = 1.4
+	# On the knight's layer, so it doesn't drift across the eye slit in first person.
+	_armor_frost.layers = 1 << (KNIGHT_RENDER_LAYER - 1)
+	_apply_armor_frost(Graphics.level)
+	Graphics.level_changed.connect(_apply_armor_frost)
+	# First person: frost around the helmet's eye slit.
+	var slit_material := _eye_slit.material as ShaderMaterial
+	if slit_material != null:
+		slit_material.set_shader_parameter("frost", 1.0)
+	armor_changed.emit(true)
+
+
+func _armor_piece(parent: Node3D, size: Vector3, at: Vector3, material: Material) -> MeshInstance3D:
+	var box := BoxMesh.new()
+	box.size = size
+	box.material = material
+	var piece := MeshInstance3D.new()
+	piece.name = "CryoArmor"
+	piece.mesh = box
+	piece.position = at
+	piece.layers = 1 << (KNIGHT_RENDER_LAYER - 1)
+	parent.add_child(piece)
+	return piece
+
+
+func _apply_armor_frost(level: String) -> void:
+	if is_instance_valid(_armor_frost):
+		_armor_frost.emitting = level != "low"
+		_armor_frost.visible = level != "low"
 
 
 ## Finds the nearest thing the knight could use with E: a knife (if he has room

@@ -63,6 +63,7 @@ script = ExtResource("13_hint")
 [connection signal="pickup_changed" from="Knight" to="HUD" method="set_pickup_prompt"]
 [connection signal="died" from="Knight" to="HUD" method="show_game_over"]
 [connection signal="shift_lock_changed" from="Knight" to="HUD" method="set_shift_lock"]
+[connection signal="armor_changed" from="Knight" to="HUD" method="set_armor"]
 [connection signal="wave_started" from="WaveManager" to="HUD" method="on_wave_started"]
 [connection signal="dummies_left_changed" from="WaveManager" to="HUD" method="on_dummies_left_changed"]
 [connection signal="break_time_changed" from="WaveManager" to="HUD" method="on_break_time_changed"]

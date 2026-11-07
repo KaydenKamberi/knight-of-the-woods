@@ -2,8 +2,9 @@ extends Control
 ## The crafting menu (PRD R-5, R-7, R-10, R-12, R-14). Opens with C, or the
 ## Craft button on touch, but only during breaks after waves 1 to 14.
 ##
-## One row per recipe from game_config.gd with its cost and a Craft button,
-## Rows update whenever the inventory changes. (The furnace and smelting live
+## Cryo armour has its own section at the top (X-1), so it's always in view;
+## below it, one row per weapon recipe from game_config.gd with its cost and a
+## Craft button. Rows update whenever the inventory changes. (The furnace and smelting live
 ## at the furnace in the castle courtyard, not here.)
 ##
 ## The menu fills the screen (re-filling it if the window is resized). The
@@ -16,7 +17,9 @@ signal close_requested
 const Config := preload("res://scripts/game_config.gd")
 const Inventory := preload("res://scripts/inventory.gd")
 ## The panel's size, shrunk if the screen is smaller (never more than 90% of it).
-const PANEL_SIZE := Vector2(900, 600)
+const PANEL_SIZE := Vector2(940, 640)
+## Items in their own section above the weapons list.
+const ARMOUR := ["cryo_armor"]
 const MAX_SCREEN_SHARE := 0.9
 ## What each item does, shown under its name.
 const DESCRIPTIONS := {
@@ -81,7 +84,8 @@ func refresh() -> void:
 	for item in _rows:
 		var button: Button = _rows[item]
 		if _inventory.owns(item) and item != "ultra_blaster":
-			button.text = "Owned"
+			# Armour is put on the moment it's crafted.
+			button.text = "Equipped" if item in ARMOUR else "Owned"
 			button.disabled = true
 		else:
 			button.text = "Craft"
@@ -118,12 +122,18 @@ func _build() -> void:
 	center.add_child(panel)
 
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 8)
+	column.add_theme_constant_override("separation", 6)
 	panel.add_child(column)
-	column.add_child(_label("Crafting", 34, Color(1, 0.88, 0.6)))
-	_materials_label = _label("", 17, Color(0.85, 0.9, 1.0))
+	column.add_child(_label("Crafting", 30, Color(1, 0.88, 0.6)))
+	_materials_label = _label("", 16, Color(0.85, 0.9, 1.0))
 	_wrap(_materials_label)
 	column.add_child(_materials_label)
+
+	# Armour first, outside the scrolling list, so it can never be scrolled out of view.
+	column.add_child(_label("Armour", 18, Color(0.7, 0.88, 1.0)))
+	for item in ARMOUR:
+		_add_recipe_row(column, item)
+	column.add_child(_label("Weapons", 18, Color(1, 0.85, 0.5)))
 
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -131,14 +141,11 @@ func _build() -> void:
 	column.add_child(scroll)
 	var rows := VBoxContainer.new()
 	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rows.add_theme_constant_override("separation", 6)
+	rows.add_theme_constant_override("separation", 4)
 	scroll.add_child(rows)
-
 	for item in Config.RECIPES:
-		var title: String = "Cryo armour" if item == "cryo_armor" else Config.WEAPONS[item]["name"]
-		var button := _row(rows, title, DESCRIPTIONS[item], Inventory.describe_cost(Config.RECIPES[item]))
-		button.pressed.connect(func() -> void: _inventory.craft(item))
-		_rows[item] = button
+		if not (item in ARMOUR):
+			_add_recipe_row(rows, item)
 
 	var close := _button("Close (C)")
 	close.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -146,25 +153,32 @@ func _build() -> void:
 	column.add_child(close)
 
 
-## One recipe row: name and description on the left, cost, then a button. Returns the button.
+func _add_recipe_row(parent: Control, item: String) -> void:
+	var title: String = "Cryo armour" if item == "cryo_armor" else Config.WEAPONS[item]["name"]
+	var button := _row(parent, title, DESCRIPTIONS[item], Inventory.describe_cost(Config.RECIPES[item]))
+	button.pressed.connect(func() -> void: _inventory.craft(item))
+	_rows[item] = button
+
+
+## One compact recipe row: the name, what it does, the cost, then a button. Returns the button.
 func _row(parent: Control, title: String, description: String, cost: String) -> Button:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	parent.add_child(row)
-	var text := VBoxContainer.new()
-	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	text.add_theme_constant_override("separation", 0)
-	row.add_child(text)
-	var title_label := _label(title, 24, Color(1, 0.95, 0.85))
+	var title_label := _label(title, 22, Color(1, 0.95, 0.85))
 	title_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	title_label.add_theme_constant_override("outline_size", 4)
+	title_label.custom_minimum_size = Vector2(170, 0)
+	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_wrap(title_label)
-	text.add_child(title_label)
-	var description_label := _label(description, 15, Color(0.8, 0.8, 0.8))
+	row.add_child(title_label)
+	var description_label := _label(description, 14, Color(0.8, 0.8, 0.8))
+	description_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	description_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_wrap(description_label)
-	text.add_child(description_label)
-	var cost_label := _label(cost, 17, Color(0.95, 0.8, 0.5))
-	cost_label.custom_minimum_size = Vector2(180, 0)
+	row.add_child(description_label)
+	var cost_label := _label(cost, 16, Color(0.95, 0.8, 0.5))
+	cost_label.custom_minimum_size = Vector2(170, 0)
 	cost_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_wrap(cost_label)
 	row.add_child(cost_label)
