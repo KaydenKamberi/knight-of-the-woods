@@ -7,7 +7,10 @@ extends CanvasLayer
 ## - Touch controls on phones and tablets, and a short controls hint on PC
 ##   (K-1). The last kind of input used wins: touching the screen switches to
 ##   touch controls, and typing or clicking a real mouse switches back.
-## - Game-over screen with a Restart button when the knight falls.
+## - Wave counter, dummies left, break countdown, a "Wave X" banner and the
+##   mini boss's health bar (M4), fed by the wave manager.
+## - Game-over screen with a Restart button when the knight falls, and the
+##   "Final battle coming soon" screen after wave 19.
 
 signal input_mode_changed(touch: bool)
 ## Forwarded from the touch controls, in screen pixels.
@@ -23,6 +26,7 @@ var touch_mode := false
 var _pickup_prompt := ""
 var _last_health := -1
 var _flash_tween: Tween
+var _banner_tween: Tween
 
 @onready var _touch_controls: TouchControls = $TouchControls
 @onready var _pc_hint: Control = $PcHint
@@ -35,6 +39,14 @@ var _flash_tween: Tween
 @onready var _damage_flash: ColorRect = $DamageFlash
 @onready var _game_over: Control = $GameOver
 @onready var _restart_button: Button = $GameOver/Center/RestartButton
+@onready var _end_title: Label = $GameOver/Center/Title
+@onready var _end_subtitle: Label = $GameOver/Center/Subtitle
+@onready var _wave_label: Label = $WaveInfo/WaveLabel
+@onready var _enemies_label: Label = $WaveInfo/EnemiesLabel
+@onready var _countdown_label: Label = $WaveInfo/CountdownLabel
+@onready var _boss_name_label: Label = $WaveInfo/BossName
+@onready var _boss_bar: ProgressBar = $WaveInfo/BossBar
+@onready var _banner: Label = $Banner
 
 
 func _ready() -> void:
@@ -90,6 +102,59 @@ func set_pickup_prompt(prompt: String) -> void:
 
 ## Freezes the game and shows the game-over screen.
 func show_game_over() -> void:
+	_show_end_screen("You have fallen", "The dummies got the better of you.")
+
+
+# --- Called by the wave manager (connected in forest.tscn) ------------------------
+
+func on_wave_started(wave: int, last_wave: int) -> void:
+	_wave_label.text = "Wave %d / %d" % [wave, last_wave]
+	_show_banner("Wave %d" % wave)
+
+
+func on_dummies_left_changed(count: int) -> void:
+	if count > 0:
+		_enemies_label.text = "Dummies left: %d" % count
+	else:
+		_enemies_label.text = "The mini boss is coming..."
+
+
+func on_break_time_changed(seconds_left: float, next_wave: int) -> void:
+	_countdown_label.visible = seconds_left >= 0.0
+	if seconds_left >= 0.0:
+		_countdown_label.text = "Wave %d starts in %d" % [next_wave, ceili(seconds_left)]
+		_enemies_label.text = "Break: grab your knives"
+
+
+func on_mini_boss_appeared(boss_name: String) -> void:
+	_enemies_label.text = "Mini boss!"
+	_boss_name_label.text = boss_name
+	_boss_name_label.visible = true
+	_boss_bar.visible = true
+	_show_banner("%s appears!" % boss_name)
+
+
+func on_mini_boss_health_changed(health: int, max_health: int) -> void:
+	_boss_bar.max_value = max_health
+	_boss_bar.value = health
+
+
+func on_wave_cleared(wave: int) -> void:
+	_boss_name_label.visible = false
+	_boss_bar.visible = false
+	_show_banner("Wave %d cleared!" % wave)
+
+
+func show_final_battle_placeholder() -> void:
+	_show_end_screen("Final battle coming soon",
+			"You beat all 19 waves! The battle at the castle gates is on its way.")
+
+
+# -----------------------------------------------------------------------------
+
+func _show_end_screen(title: String, subtitle: String) -> void:
+	_end_title.text = title
+	_end_subtitle.text = subtitle
 	get_tree().paused = true
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_touch_controls.visible = false
@@ -105,6 +170,18 @@ func show_game_over() -> void:
 func _on_restart_pressed() -> void:
 	get_tree().paused = false
 	get_tree().reload_current_scene()
+
+
+## Shows big text in the middle of the screen for a couple of seconds.
+func _show_banner(text: String) -> void:
+	_banner.text = text
+	if _banner_tween:
+		_banner_tween.kill()
+	_banner.modulate.a = 0.0
+	_banner_tween = create_tween().set_ignore_time_scale(true)
+	_banner_tween.tween_property(_banner, "modulate:a", 1.0, 0.2)
+	_banner_tween.tween_interval(1.8)
+	_banner_tween.tween_property(_banner, "modulate:a", 0.0, 0.5)
 
 
 func _flash_damage() -> void:

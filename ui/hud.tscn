@@ -18,6 +18,13 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
+[sub_resource type="StyleBoxFlat" id="Style_boss_fill"]
+bg_color = Color(0.85, 0.5, 0.12, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
 [node name="HUD" type="CanvasLayer"]
 layer = 2
 script = ExtResource("1_hud")
@@ -83,6 +90,89 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
 theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 18
 text = "Shift-lock on"
+
+[node name="WaveInfo" type="VBoxContainer" parent="."]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -260.0
+offset_top = 16.0
+offset_right = 260.0
+offset_bottom = 176.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="WaveLabel" type="Label" parent="WaveInfo"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.95, 0.85, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 28
+text = "Get ready"
+horizontal_alignment = 1
+
+[node name="EnemiesLabel" type="Label" parent="WaveInfo"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.9)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 20
+text = "Grab a knife from a wanted poster"
+horizontal_alignment = 1
+
+[node name="CountdownLabel" type="Label" parent="WaveInfo"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.35, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 26
+text = "Wave 1 starts in 10"
+horizontal_alignment = 1
+
+[node name="BossName" type="Label" parent="WaveInfo"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.75, 0.6, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.85)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 22
+text = "Mini boss"
+horizontal_alignment = 1
+
+[node name="BossBar" type="ProgressBar" parent="WaveInfo"]
+visible = false
+custom_minimum_size = Vector2(400, 18)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+theme_override_styles/background = SubResource("Style_health_back")
+theme_override_styles/fill = SubResource("Style_boss_fill")
+max_value = 300.0
+value = 300.0
+show_percentage = false
+
+[node name="Banner" type="Label" parent="."]
+modulate = Color(1, 1, 1, 0)
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -500.0
+offset_top = -230.0
+offset_right = 500.0
+offset_bottom = -140.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.92, 0.75, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.9)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 64
+text = "Wave 1"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="TouchControls" type="Control" parent="."]
 visible = false

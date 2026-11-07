@@ -10,15 +10,21 @@ extends CharacterBody3D
 ## a tree of pivot nodes that the walk animation swings. For the ragdoll, each
 ## box moves into its own RigidBody3D, joined to its neighbours by PinJoint3Ds.
 ## Walking, attacking, timers and the ragdoll physics all run on world time.
+##
+## Mini bosses (M4) use this same script, set up by configure_mini_boss(): they
+## are bigger, tougher, wear headgear, and only flinch when hit until their
+## health runs out, then fall apart like any dummy.
 
 ## Sent once, when the dummy's health reaches zero.
 signal defeated
+signal health_changed(health: int, max_health: int)
 
 enum State { WALKING, ATTACKING, RAGDOLL, REASSEMBLING, DEFEATED }
 
 ## Physics layer values (see Project Settings > Layer Names > 3D Physics).
 const WORLD_LAYER := 1
 const DEBRIS_LAYER := 16
+const MiniBosses := preload("res://scripts/mini_bosses.gd")
 
 @export var max_health := 100
 @export var walk_speed := 2.2
@@ -33,16 +39,29 @@ const DEBRIS_LAYER := 16
 ## Seconds after a swing before the dummy walks again.
 @export var attack_cooldown := 1.0
 
+@export_group("Look")
+## Scales the whole body. Mini bosses are about 1.5 to 1.9.
+@export var size_scale := 1.0
+@export var cloth_color := Color(0.74, 0.62, 0.42)
+## "", "crown", "horns", "bucket", "antlers" or "hood".
+@export var headgear := ""
+
 @export_group("Ragdoll")
+## When off (mini bosses), hits only make it flinch until its health runs out.
+@export var ragdoll_on_hit := true
 ## Seconds a hit dummy lies on the ground before getting back up.
 @export var ragdoll_time := 2.0
 ## Seconds it takes to pull itself back together.
 @export var reassemble_time := 0.45
 ## Seconds after defeat before its joints break and it falls apart.
 @export var fall_apart_delay := 0.3
+## Seconds (world time) the pieces lie around before they shrink away.
+@export var debris_lifetime := 10.0
 
 var health := 0
 var state := State.WALKING
+var is_mini_boss := false
+var boss_name := ""
 
 var _player = null
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
@@ -57,6 +76,8 @@ var _stuck_time := 0.0
 var _detour_time := 0.0
 var _detour_side := 1.0
 var _reassemble_tween: Tween
+var _flinch_tween: Tween
+var _stagger_left := 0.0
 
 @onready var _body: Node3D = $Body
 @onready var _collision: CollisionShape3D = $Collision
@@ -67,7 +88,23 @@ var _reassemble_tween: Tween
 func _ready() -> void:
 	health = max_health
 	add_to_group("dummies")
+	_fit_collision_to_size()
 	_build_body()
+
+
+## Turns this dummy into the given wave's mini boss. Call before adding it to the scene.
+func configure_mini_boss(info: Dictionary) -> void:
+	is_mini_boss = true
+	boss_name = info["name"]
+	size_scale = info["size"]
+	cloth_color = info["color"]
+	headgear = info["headgear"]
+	max_health = info["health"]
+	attack_damage = info["damage"]
+	walk_speed = info["walk_speed"]
+	attack_range *= size_scale
+	attack_windup = 0.7
+	ragdoll_on_hit = false
 
 
 func _physics_process(delta: float) -> void:
@@ -91,14 +128,19 @@ func take_knife_hit(collider: Object, point: Vector3, direction: Vector3, damage
 	var part := _part_hit_by(collider, point)
 	if state != State.DEFEATED:
 		health = maxi(health - damage, 0)
-		if state == State.RAGDOLL:
-			_state_time = 0.0  # Knocked down again: stay down a little longer.
-		else:
-			_go_ragdoll()
+		health_changed.emit(health, max_health)
 		if health == 0:
+			if state != State.RAGDOLL:
+				_go_ragdoll()
 			_start(State.DEFEATED)
 			remove_from_group("dummies")
 			defeated.emit()
+		elif not ragdoll_on_hit:
+			_flinch()
+		elif state == State.RAGDOLL:
+			_state_time = 0.0  # Knocked down again: stay down a little longer.
+		else:
+			_go_ragdoll()
 	var body: RigidBody3D = part["body"]
 	if body != null:
 		body.linear_velocity += direction * push + Vector3.UP
@@ -118,7 +160,8 @@ func _walk(delta: float) -> void:
 	var distance := to_player.length()
 
 	var direction := Vector3.ZERO
-	if has_target and distance > attack_range * 0.8:
+	_stagger_left = maxf(_stagger_left - delta, 0.0)
+	if has_target and distance > attack_range * 0.8 and _stagger_left == 0.0:
 		direction = to_player / distance
 		if _detour_time > 0.0:
 			# Stuck on a tree or rock: walk off to one side for a moment.
@@ -169,6 +212,16 @@ func _attack(delta: float) -> void:
 		_set_arm_angle(lerpf(arms_up, 0.3, clampf((_state_time - attack_windup) / 0.15, 0.0, 1.0)))
 		if _state_time >= attack_windup + attack_cooldown:
 			_start(State.WALKING)
+
+
+## A mini boss rocks back and stops for a moment instead of going ragdoll.
+func _flinch() -> void:
+	if _flinch_tween:
+		_flinch_tween.kill()
+	_stagger_left = 0.3
+	_flinch_tween = create_tween()
+	_flinch_tween.tween_property(_body, "rotation:x", 0.3, 0.08)
+	_flinch_tween.tween_property(_body, "rotation:x", 0.0, 0.25)
 
 
 func _start(new_state: State) -> void:
@@ -224,6 +277,8 @@ func _reset_pose() -> void:
 func _go_ragdoll() -> void:
 	if _reassemble_tween:
 		_reassemble_tween.kill()
+	if _flinch_tween:
+		_flinch_tween.kill()
 	_start(State.RAGDOLL)
 	_collision.set_deferred("disabled", true)
 
@@ -233,7 +288,7 @@ func _go_ragdoll() -> void:
 		body.name = String(part["name"]).to_pascal_case()
 		body.collision_layer = DEBRIS_LAYER
 		body.collision_mask = WORLD_LAYER | DEBRIS_LAYER
-		body.mass = part["mass"]
+		body.mass = part["mass"] * pow(size_scale, 3.0)
 		body.angular_damp = 1.5
 		# Lets a knife find this dummy when it hits a loose piece.
 		body.set_meta("dummy", self)
@@ -299,6 +354,25 @@ func _fall_apart() -> void:
 			body.linear_velocity += Vector3(randf_range(-1.5, 1.5), randf_range(0.5, 2.0), randf_range(-1.5, 1.5))
 			body.angular_velocity += Vector3(randf_range(-4, 4), randf_range(-4, 4), randf_range(-4, 4))
 	set_physics_process(false)
+	# The timer runs on world time and stops while the game is paused.
+	get_tree().create_timer(debris_lifetime, false).timeout.connect(_clear_debris)
+
+
+## Shrinks the pieces away, then removes the dummy (and any knives stuck in it).
+func _clear_debris() -> void:
+	var shrink := create_tween().set_parallel()
+	for part in _parts:
+		shrink.tween_property(part["mesh"], "scale", Vector3.ONE * 0.01, 0.6)
+	shrink.chain().tween_callback(queue_free)
+
+
+func _fit_collision_to_size() -> void:
+	# The capsule shape is shared by every dummy, so give this one its own copy.
+	var capsule := (_collision.shape as CapsuleShape3D).duplicate() as CapsuleShape3D
+	capsule.radius *= size_scale
+	capsule.height *= size_scale
+	_collision.shape = capsule
+	_collision.position.y *= size_scale
 
 
 func _part_hit_by(collider: Object, point: Vector3) -> Dictionary:
@@ -351,14 +425,18 @@ func _part_specs() -> Array[Dictionary]:
 					"center": Vector3(0.1 * side, 0.24, 0), "size": Vector3(0.13, 0.42, 0.13),
 					"mass": 2.0, "material": "limb"},
 		])
+	for spec in specs:
+		spec["joint"] *= size_scale
+		spec["center"] *= size_scale
+		spec["size"] *= size_scale
 	return specs
 
 
 func _build_body() -> void:
 	var materials := {
-		"cloth": _material(Color(0.74, 0.62, 0.42)),
-		"limb": _material(Color(0.64, 0.52, 0.34)),
-		"head": _material(Color(0.8, 0.7, 0.5)),
+		"cloth": _material(cloth_color),
+		"limb": _material(cloth_color.darkened(0.14)),
+		"head": _material(cloth_color.lightened(0.1)),
 	}
 	var joints := {}
 	for spec in _part_specs():
@@ -401,23 +479,27 @@ func _add_details() -> void:
 	var stitch := _material(Color(0.2, 0.13, 0.08))
 	var straw := _material(Color(0.9, 0.78, 0.36))
 
+	var k := size_scale
 	var torso: Node3D = _find_part("torso")["mesh"]
-	_add_disc(torso, 0.13, red, Vector3(0, 0.04, -0.133))
-	_add_disc(torso, 0.085, white, Vector3(0, 0.04, -0.136))
-	_add_disc(torso, 0.04, red, Vector3(0, 0.04, -0.139))
+	_add_disc(torso, 0.13 * k, red, Vector3(0, 0.04, -0.133) * k)
+	_add_disc(torso, 0.085 * k, white, Vector3(0, 0.04, -0.136) * k)
+	_add_disc(torso, 0.04 * k, red, Vector3(0, 0.04, -0.139) * k)
 
 	var head: Node3D = _find_part("head")["mesh"]
 	for x in [-0.07, 0.07]:
 		# Each eye is an X made of two crossed stitches.
 		for tilt in [PI / 4.0, -PI / 4.0]:
-			_add_box(head, Vector3(0.09, 0.016, 0.01), stitch, Vector3(x, 0.03, -0.152), tilt)
-	_add_box(head, Vector3(0.13, 0.014, 0.01), stitch, Vector3(0, -0.07, -0.152))
-	for i in 3:
-		var x := (i - 1) * 0.07
-		_add_box(head, Vector3(0.04, 0.12, 0.04), straw, Vector3(x, 0.18, 0), x * 2.5)
+			_add_box(head, Vector3(0.09, 0.016, 0.01) * k, stitch, Vector3(x, 0.03, -0.152) * k, tilt)
+	_add_box(head, Vector3(0.13, 0.014, 0.01) * k, stitch, Vector3(0, -0.07, -0.152) * k)
+	if headgear.is_empty():
+		for i in 3:
+			var x := (i - 1) * 0.07
+			_add_box(head, Vector3(0.04, 0.12, 0.04) * k, straw, Vector3(x, 0.18, 0) * k, x * 2.5)
+	else:
+		MiniBosses.add_headgear(head, headgear, 0.3 * k, 0.3 * k)
 
 	var pelvis: Node3D = _find_part("pelvis")["mesh"]
-	_add_box(pelvis, Vector3(0.38, 0.05, 0.26), stitch, Vector3(0, 0.08, 0))
+	_add_box(pelvis, Vector3(0.38, 0.05, 0.26) * k, stitch, Vector3(0, 0.08, 0) * k)
 
 
 func _add_box(parent: Node3D, size: Vector3, material: Material, at: Vector3, tilt := 0.0) -> void:

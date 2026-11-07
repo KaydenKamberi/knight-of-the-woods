@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" path="res://scenes/knight.tscn" id="2_knight"]
 [ext_resource type="PackedScene" path="res://ui/hud.tscn" id="3_hud"]
 [ext_resource type="PackedScene" path="res://scenes/swinging_log.tscn" id="4_log"]
-[ext_resource type="PackedScene" path="res://scenes/dummy.tscn" id="5_dummy"]
+[ext_resource type="Script" path="res://scripts/wave_manager.gd" id="5_waves"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.36, 0.55, 0.78, 1)
@@ -67,16 +67,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -5)
 
 [node name="Knight" parent="." instance=ExtResource("2_knight")]
 
-[node name="Dummies" type="Node3D" parent="."]
+[node name="WaveManager" type="Node" parent="."]
+script = ExtResource("5_waves")
 
-[node name="Dummy1" parent="Dummies" instance=ExtResource("5_dummy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15, 0, -15)
-
-[node name="Dummy2" parent="Dummies" instance=ExtResource("5_dummy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -18, 0, -8)
-
-[node name="Dummy3" parent="Dummies" instance=ExtResource("5_dummy")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 20)
+[node name="Enemies" type="Node3D" parent="WaveManager"]
 
 [node name="HUD" parent="." instance=ExtResource("3_hud")]
 
@@ -87,3 +81,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 20)
 [connection signal="pickup_changed" from="Knight" to="HUD" method="set_pickup_prompt"]
 [connection signal="died" from="Knight" to="HUD" method="show_game_over"]
 [connection signal="shift_lock_changed" from="Knight" to="HUD" method="set_shift_lock"]
+[connection signal="wave_started" from="WaveManager" to="HUD" method="on_wave_started"]
+[connection signal="dummies_left_changed" from="WaveManager" to="HUD" method="on_dummies_left_changed"]
+[connection signal="break_time_changed" from="WaveManager" to="HUD" method="on_break_time_changed"]
+[connection signal="mini_boss_appeared" from="WaveManager" to="HUD" method="on_mini_boss_appeared"]
+[connection signal="mini_boss_health_changed" from="WaveManager" to="HUD" method="on_mini_boss_health_changed"]
+[connection signal="wave_cleared" from="WaveManager" to="HUD" method="on_wave_cleared"]
+[connection signal="all_waves_cleared" from="WaveManager" to="HUD" method="show_final_battle_placeholder"]

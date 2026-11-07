@@ -50,6 +50,8 @@ If a PC has a touch screen, the last thing you used wins: touching the screen sh
 - **`scenes/knife_model.tscn`**: the knife's low-poly model, shared by posters and thrown knives.
 - **`scenes/dummy.tscn`** + **`scripts/dummy.gd`**: a straw training dummy that walks at the knight and swings at him. Health 100, so two knife hits. The first hit knocks it into a ragdoll; it lies there for a moment, then pulls itself back together. The second hit makes it fall apart. Speed, damage and timings are on the `Dummy` node in the Inspector. Its body is built in code, so in the editor you only see its collision capsule.
 - **`scripts/crosshair.gd`**: the aiming dot in the middle of the screen.
+- **`scripts/wave_manager.gd`** (the `WaveManager` node in `forest.tscn`): runs waves 1 to 19. See **Waves** below.
+- **`scripts/mini_bosses.gd`**: the 19 mini bosses: names, colours, headgear and stats. Mini bosses use the dummy scene and script, made bigger and tougher.
 - **`scripts/world_time.gd`**: the time mechanic (autoload, reachable from any script as `WorldTime`). See below.
 - **`scenes/swinging_log.tscn`** + **`scripts/swinging_log.gd`**: a log on two ropes in front of the start point, for checking that the world slows down.
 
@@ -77,6 +79,21 @@ The world nearly freezes (5% speed) when you stand still. Holding a move key ram
 | `enabled` | `true` | Set to `false` to turn the mechanic off |
 
 The "World time" readout in the top-left corner shows the current speed. Turn it off with **Show World Time** on the `HUD` node.
+
+## Waves
+
+- **Wave n** sends in 2 × n dummies from spawn points around the forest edge, a few at a time.
+- When they're all down, **that wave's mini boss** appears, with a health bar at the top of the screen. Its health is 300 + 100 × (wave − 1), so 2,100 at wave 19. Mini bosses are bigger, hit harder (15, rising to 24, vs 10 for a dummy), wear headgear, and only flinch when hit until they fall apart.
+- Beating the mini boss ends the wave. Then comes a **break** with a countdown: 30 seconds after wave 1, growing evenly to 60 seconds after wave 14. From wave 15 on there's no break: the next wave starts straight away.
+- **Wanted posters** show the current (or next) wave's mini boss: a little portrait, its name and its wave.
+- After the **wave 19** mini boss, a "Final battle coming soon" screen appears.
+- Breaks count down in **world time**, like everything else. Standing still stretches a break out, so walk around to make it pass. To count breaks in real seconds instead, untick **Breaks Use World Time** on the `WaveManager` node.
+- Defeated dummies' pieces shrink away after 10 seconds of world time (`debris_lifetime` on the dummy), so big waves don't pile up.
+
+**Testing later waves:**
+
+- Select the `WaveManager` node in `forest.tscn` and set **Start Wave** in the Inspector (1 to 19). The game then begins at that wave.
+- While running from the editor (debug builds only): **F2** skips to the next wave straight away, and **F3** ends a break early, or removes the current dummies so the mini boss comes out.
 
 ## Physics layers
 
