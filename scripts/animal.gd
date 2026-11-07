@@ -270,7 +270,7 @@ func _fall() -> void:
 	topple.tween_property(_model, "rotation:z", PI * 0.5, 0.4)
 	topple.tween_interval(1.2)
 	topple.tween_property(_model, "scale", Vector3.ONE * 0.01, 0.5)
-	topple.tween_callback(func() -> void: visible = false)
+	topple.tween_callback(hide)
 	fell.emit(self)
 
 

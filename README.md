@@ -32,8 +32,8 @@ The full design is in `Knight of the Still Woods — PRD.md`.
 | Attack, throw or shoot (equipped weapon) | Left click | Attack button, bottom right |
 | Hammer ground slam (once per wave) | Right click | Slam button (hammer only) |
 | Hammer spin | F | Spin button (hammer only) |
-| Grab a knife or pick something up | E | Grab button (appears when one is in reach) |
-| Switch weapon | 1 to 9, or the mouse wheel | Weapon button (cycles) |
+| Grab a knife, pick berries, tame an animal, open the trapdoor / stone / chest, climb up | E | Grab button (appears when something is in reach, labelled GRAB, PICK, TAME, OPEN, PUSH or CLIMB) |
+| Switch weapon | 1 to 9, or the mouse wheel (slots past 9: wheel only) | Weapon button (cycles) |
 | Crafting menu (breaks only) | C | Craft button (appears during breaks) |
 | Shift-lock: the knight turns with the camera | Left Shift | Lock icon, under the camera icon |
 | Switch view (over the shoulder / inside the helmet) | V | Camera icon, top right |
@@ -75,6 +75,7 @@ If a PC has a touch screen, the last thing you used wins: touching the screen sh
 - **`scripts/mini_bosses.gd`**: the 19 mini bosses: names, colours, headgear and stats. Mini bosses use the dummy scene and script, made bigger and tougher.
 - **`scripts/world_time.gd`**: the time mechanic (autoload, reachable from any script as `WorldTime`). See below.
 - **`scenes/swinging_log.tscn`** + **`scripts/swinging_log.gd`**: a log on two ropes in front of the start point, for checking that the world slows down.
+- **Update 2:** **`scripts/bunker.gd`** (the `Bunker` node), **`scripts/bunker_passage.gd`**, **`scripts/bunker_chest.gd`**: the secret bunker, its entrances and its chest. **`scripts/animals.gd`** (the `Animals` node) + **`scripts/animal.gd`**: wild animals and taming. **`scripts/berry_bush.gd`**: pickable berry bushes. **`scripts/grenade.gd`**, **`scripts/musket_ball.gd`**: thrown grenades and musket balls. **`scripts/thief_arrows.gd`**: the screen-edge arrows pointing to thieving bandits. **`scripts/armor_icon.gd`**: the Cryo armour icon on the HUD.
 
 ## Time mechanic
 
@@ -152,10 +153,12 @@ The "World time" readout in the top-left corner shows the current speed. Turn it
 
 ## Loot and crafting
 
-- **Loot:** each dummy drops 1 or 2 random materials (wood, stone, raw iron, coal, string; string is the rarest). Each mini boss drops 1 Cryo Crystal plus 3 random materials, with a 1 in 20 chance of an Ultra Crystal. Loot pops out of the body; walk over it to pick it up. What you carry shows under the health bar.
+- **Loot:** each regular enemy drops 1 or 2 random materials (wood, stone, raw iron, coal, gunpowder, string, meat; string and meat are the rarest, gunpowder is as common as coal). Each mini boss drops 1 Cryo Crystal plus 3 random materials, with a 1 in 20 chance of an Ultra Crystal. Loot pops out of the body; walk over it to pick it up. What you carry shows under the health bar.
 - **Crafting** opens with **C** (Craft button on touch) before wave 1 and during the breaks after waves 1 to 14. "Press C to craft" shows at the top while it's open.
 - **Iron** comes from the furnace in the castle (see **The furnace**), not from the crafting menu.
-- **Weapons** go on the hotbar at the bottom (knives are always slot 1). Melee weapons and the bow never break. Only the Ultra blaster runs out (3 shots per crafted blaster).
+- **Berries** are picked from the red berry bushes around the forest (E / Pick). A picked bush grows its berries back when a wave is cleared. Meat and berries are for taming (see **Animals and taming**).
+- **Diamond and titanium** are only in the bunker chest (see **The secret bunker**). Enemies never drop them.
+- **Weapons** go on the hotbar at the bottom (knives are always slot 1). Melee weapons, the bow and the musket never break. The Ultra blaster runs out (3 shots per crafted blaster) and grenades are used up (one per craft).
 
 | Weapon | Damage | Recipe | What it does |
 | --- | --- | --- | --- |
@@ -167,10 +170,41 @@ The "World time" readout in the top-left corner shows the current speed. Turn it
 | Cryo dagger | 30 | 1 Cryo + 2 stone + 1 string | A slash freezes the head; the next dagger hit shatters it. That defeats a regular dummy outright; a mini boss takes 300 instead |
 | Cryo hammer | 100 | 2 Cryo + 3 iron | Slowest. Right click: ground slam, once per wave: 150 damage within 6 m, survivors frozen for 3 s, weakened dummies (under half health) shatter. F: spin, 50 damage within 3 m, 5 s cooldown |
 | Ultra blaster | 1,000 | 1 Ultra Crystal | Lobs exploding rounds that hit everything in the blast. One hit defeats any dummy or mini boss; the big boss takes exactly 1,000 (4 hits). 3 shots, then it breaks |
-| Cryo armour | — | 3 iron + 3 stone + 2 Cryo | Reflects 25% of melee damage back and slows the attacker by half for 1 s. The knight's armour turns icy blue |
+| Dagger | 20 | 1 stone + 1 wood | Very fast stabs |
+| Bat | 10 | 2 wood | Knocks enemies far back |
+| Grenade | One-shots regular enemies | 2 gunpowder + 1 iron | Thrown in an arc, explodes on impact. Every regular enemy in the blast is destroyed; a mini boss loses 1 / (wave × 2) of its health (wave 10's takes 20 grenades), the big boss 1 / 40. Never hurts the knight, soldiers or tamed animals. Used up |
+| Diamond sword | 65 | 3 diamond + 1 wood | Fast swings. Crits |
+| Diamond axe | 85 | 3 diamond + 2 wood | Slow, hits everyone in front. Crits |
+| Diamond dagger | 25 | 2 diamond + 1 wood | Very fast. Crits |
+| Musket | 90 | 3 titanium + 4 gunpowder | Fires a heavy ball at the crosshair. Unlimited shots; 3 s reload counted in real time, so it reloads at full speed in slow motion (a bar shows under the crosshair). Crits |
+| Cryo armour | — | 3 iron + 3 stone + 2 Cryo | Has its own section at the top of the crafting menu. Reflects 25% of melee damage back and slows the attacker by half for 1 s. The knight wears icy blue armour pieces with a frost glow, the eye slit frosts over in first person, and the HUD shows an armour icon |
+
+- **Critical hits:** the musket and the three diamond weapons have a 1 in 12 chance per hit of double damage, with a golden flash and a "CRIT!" pop-up. No other weapon crits.
+- The bunker only has 6 diamonds, enough for two of the three diamond weapons, never all three.
 
 - The knight's **health refills** when a wave is cleared.
 - Every number above (damage, ranges, cooldowns, recipes, drop rates) is in `scripts/game_config.gd`.
+
+## The secret bunker
+
+- Two hidden entrances lead to the same torch-lit room under the forest: a trapdoor at the edge of the clearing, half hidden under bushes and leaves ("[E] Open trapdoor"), and a loose stone on the inside of the castle's left wall ("[E] Push stone"). The prompts only show up close.
+- Inside, "[E] Climb up" by the ladder goes back to the trapdoor, and "[E] Climb up" by the stairs goes to the castle. Going through fades the screen; it works any time, during breaks or waves, as often as you like.
+- The chest holds 6 diamonds and 3 titanium. "[E] Open chest" takes everything at once. It never refills during a run; Try Again refills it.
+- Enemies don't follow the knight down. While he's inside during a wave, the wave waits (no new enemies walk in). Breaks still count down. Tamed animals come along.
+- The room really sits far outside the forest (`BUNKER_CENTER` in `game_config.gd`), so nothing outside can see or reach it.
+
+## Enemies: looks and bandits
+
+- Regular enemies come in four looks, mixed in every wave: **bandits** (hood, face mask, patched clothes, a sack), **archers** (leather armour, quiver, bow in hand), **swordsmen** (chainmail, helmet, sword and shield) and **riders** on a horse. They all fight exactly like the version 1 dummies. A knocked-down rider climbs back on its horse; a beaten rider's horse gallops off. Mini bosses and the big boss look the same as before.
+- **Bandits steal:** the first time one touches the knight it takes 5 random materials (never weapons; fewer if he has fewer, and it just attacks if he has none), with a red "Stolen!" warning listing them. It then runs for the nearest map edge, a little faster than normal. Its sack glows, it gets a red THIEF marker, and red arrows at the screen edge point to it when it's off screen.
+- Kill it to get everything back as loot. If it reaches the edge, "The bandit escaped!" and the materials are gone for good. One theft per bandit. The wave only ends when every enemy, running bandits included, is dead or gone.
+
+## Animals and taming
+
+- Wild bears, wolves, deer and bunnies roam the forest. They're peaceful. Hit a bear or a wolf and it chases you for a while; deer and bunnies run. A killed wild animal drops meat.
+- **Taming:** walk up holding the right food and press E / Tame: meat for bears and wolves, berries for deer and bunnies. Each tame uses 1 food. You can keep 2 at a time; taming a third asks which one to let go.
+- Tamed animals wear a green collar, follow you and attack enemies near you. Bear 300 health / 90 damage, wolf 150 / 50 (fast), deer 120 / 20 (charges), bunny 50 / 5 (very fast). Who's with you shows under the health bar.
+- A tamed animal that falls comes back next to you when the wave ends. They fight in the wave 20 battle too. A new game starts with none.
 
 ## Testing shortcuts
 
@@ -182,9 +216,10 @@ These work when running from the editor (debug builds only):
 | F3 | End a break early, remove this wave's dummies so the mini boss comes out, or in wave 20 send the next group |
 | F4 | Drop the knight to half health (during waves 1 to 19 this brings in the army) |
 | F6 | Jump straight to wave 20, the final battle |
-| F7 | Get 20 stone, 10 coal and 10 raw iron (to test the furnace) |
-| F8 | Get a pile of everything: 10 of each regular material, 5 iron, 4 Cryo Crystals, 1 Ultra Crystal |
+| F7 | Get 20 stone, 10 coal, 10 raw iron and 2 Cryo Crystals (to test the furnace, then the Cryo armour) |
+| F8 | Get a pile of everything: 10 of each regular material, 10 gunpowder, 5 iron, 4 Cryo Crystals, 1 Ultra Crystal, 3 meat, 3 berries |
 | F9 | Let crafting and smelting open at any time (press again to turn off) |
+| F10 | Get the bunker chest's haul (6 diamonds, 3 titanium) without going down, to test the diamond weapons and the musket |
 
 You can also start at a later wave: select the `WaveManager` node in `forest.tscn` and set **Start Wave**.
 
@@ -253,9 +288,9 @@ This writes `builds/windows/`, `builds/linux/` and `builds/web/`, plus `KnightOf
 | 1 | world | Ground, trees, rocks, the swinging log |
 | 2 | player | The knight |
 | 3 | boundary | The invisible wall at the forest edge (stops the knight and dummies, not knives) |
-| 4 | dummies | Walking dummies |
+| 4 | dummies | Walking enemies, and wild animals (so knives, arrows and musket balls hit them) |
 | 5 | debris | Ragdoll pieces (knives hit them; the knight walks through them) |
-| 6 | allies | Soldiers (dummies bump into them; knives and arrows fly through) |
+| 6 | allies | Soldiers and tamed animals (dummies bump into them; knives and arrows fly through) |
 
 ## Install export templates first
 
