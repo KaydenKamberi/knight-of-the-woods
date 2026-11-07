@@ -4,6 +4,10 @@ extends CharacterBody3D
 ## Walks with WASD or the touch joystick, looks around with the mouse or by
 ## dragging on the right half of the screen, and switches between a camera
 ## behind the knight and a view from inside the helmet (PRD C-1 to C-3).
+##
+## Moving and looking around wake up world time (T-2, K-2). Camera look is
+## applied the moment input arrives and never scaled by delta, so it stays
+## responsive even while the world is slowed (T-4).
 
 ## Sent whenever the view changes. true means first person (inside the helmet).
 signal view_changed(first_person: bool)
@@ -12,6 +16,8 @@ signal view_changed(first_person: bool)
 ## Layer Names > 3D Render). The first-person camera hides this layer so the
 ## inside of the helmet doesn't block the view.
 const KNIGHT_RENDER_LAYER := 2
+## Horizontal speed (metres per second) above which the knight counts as moving for world time.
+const STILL_SPEED := 0.2
 
 @export var walk_speed := 5.0
 ## How quickly the knight speeds up and slows down, in metres per second per second.
@@ -31,7 +37,7 @@ const KNIGHT_RENDER_LAYER := 2
 ## How far down and up the camera can tilt, in degrees.
 @export var third_person_pitch_limits := Vector2(-70.0, 35.0)
 @export var first_person_pitch_limits := Vector2(-85.0, 85.0)
-## How long the camera takes to glide between views, in seconds.
+## How long the camera takes to glide between views, in real seconds.
 @export var switch_time := 0.15
 
 var first_person := false
@@ -76,6 +82,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		add_look_input(event.screen_relative * mouse_sensitivity)
 
 
+func _process(_delta: float) -> void:
+	# Walking (keys or joystick), still sliding to a stop, or falling all keep world time running.
+	var wants_to_move := Input.get_vector("move_left", "move_right", "move_forward", "move_back") != Vector2.ZERO
+	var still_moving := Vector2(velocity.x, velocity.z).length() > STILL_SPEED or not is_on_floor()
+	if wants_to_move or still_moving:
+		WorldTime.report_activity()
+
+
 func _physics_process(delta: float) -> void:
 	# Movement is relative to where the camera is facing.
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
@@ -96,6 +110,9 @@ func _physics_process(delta: float) -> void:
 
 ## Turns the camera. x is left/right, y is up/down, both in radians.
 func add_look_input(amount: Vector2) -> void:
+	if amount == Vector2.ZERO:
+		return
+	WorldTime.report_activity()
 	_yaw.rotation.y -= amount.x
 	_set_pitch(_pitch - amount.y)
 
@@ -118,6 +135,8 @@ func toggle_view() -> void:
 	if _view_tween:
 		_view_tween.kill()
 	_view_tween = create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	# The camera is the player's, not the world's, so the glide ignores world time.
+	_view_tween.set_ignore_time_scale(true)
 
 	if first_person:
 		# Glide into the helmet, then hide the knight's own model and show the eye slit.

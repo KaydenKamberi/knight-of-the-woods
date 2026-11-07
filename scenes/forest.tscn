@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scripts/forest.gd" id="1_forest"]
 [ext_resource type="PackedScene" path="res://scenes/knight.tscn" id="2_knight"]
 [ext_resource type="PackedScene" path="res://ui/hud.tscn" id="3_hud"]
+[ext_resource type="PackedScene" path="res://scenes/swinging_log.tscn" id="4_log"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.36, 0.55, 0.78, 1)
@@ -59,6 +60,9 @@ shape = SubResource("WorldBoundaryShape3D_ground")
 
 [node name="Trees" type="Node3D" parent="."]
 script = ExtResource("1_forest")
+
+[node name="SwingingLog" parent="." instance=ExtResource("4_log")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -5)
 
 [node name="Knight" parent="." instance=ExtResource("2_knight")]
 

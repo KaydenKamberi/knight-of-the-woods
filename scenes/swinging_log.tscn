@@ -1,0 +1,86 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/swinging_log.gd" id="1_swing"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_wood"]
+albedo_color = Color(0.42, 0.29, 0.17, 1)
+roughness = 1.0
+
+[sub_resource type="StandardMaterial3D" id="Mat_bark"]
+albedo_color = Color(0.33, 0.22, 0.13, 1)
+roughness = 1.0
+
+[sub_resource type="StandardMaterial3D" id="Mat_rope"]
+albedo_color = Color(0.72, 0.62, 0.42, 1)
+roughness = 1.0
+
+[sub_resource type="BoxMesh" id="Box_post"]
+material = SubResource("Mat_wood")
+size = Vector3(0.3, 4.6, 0.3)
+
+[sub_resource type="BoxShape3D" id="Shape_post"]
+size = Vector3(0.3, 4.6, 0.3)
+
+[sub_resource type="BoxMesh" id="Box_beam"]
+material = SubResource("Mat_wood")
+size = Vector3(0.28, 0.28, 3.8)
+
+[sub_resource type="BoxMesh" id="Box_rope"]
+material = SubResource("Mat_rope")
+size = Vector3(0.05, 2.9, 0.05)
+
+[sub_resource type="CylinderMesh" id="Cylinder_log"]
+material = SubResource("Mat_bark")
+top_radius = 0.32
+bottom_radius = 0.32
+height = 2.6
+radial_segments = 7
+rings = 0
+
+[sub_resource type="CylinderShape3D" id="Shape_log"]
+radius = 0.32
+height = 2.6
+
+[node name="SwingingLog" type="Node3D"]
+
+[node name="Frame" type="StaticBody3D" parent="."]
+
+[node name="PostA" type="MeshInstance3D" parent="Frame"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.3, -1.7)
+mesh = SubResource("Box_post")
+
+[node name="PostB" type="MeshInstance3D" parent="Frame"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.3, 1.7)
+mesh = SubResource("Box_post")
+
+[node name="Beam" type="MeshInstance3D" parent="Frame"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.45, 0)
+mesh = SubResource("Box_beam")
+
+[node name="PostACollision" type="CollisionShape3D" parent="Frame"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.3, -1.7)
+shape = SubResource("Shape_post")
+
+[node name="PostBCollision" type="CollisionShape3D" parent="Frame"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.3, 1.7)
+shape = SubResource("Shape_post")
+
+[node name="Swing" type="AnimatableBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4.3, 0)
+script = ExtResource("1_swing")
+
+[node name="RopeA" type="MeshInstance3D" parent="Swing"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.45, -0.9)
+mesh = SubResource("Box_rope")
+
+[node name="RopeB" type="MeshInstance3D" parent="Swing"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1.45, 0.9)
+mesh = SubResource("Box_rope")
+
+[node name="Log" type="MeshInstance3D" parent="Swing"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, -3.2, 0)
+mesh = SubResource("Cylinder_log")
+
+[node name="LogCollision" type="CollisionShape3D" parent="Swing"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, -3.2, 0)
+shape = SubResource("Shape_log")

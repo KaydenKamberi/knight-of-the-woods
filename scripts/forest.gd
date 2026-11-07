@@ -106,7 +106,7 @@ func _build_rocks() -> void:
 	var rocks: Array[Transform3D] = []
 	var tints: Array[Color] = []
 	var body := _add_static_body("RockColliders")
-	for spot in _scatter(rock_count, clearing_radius - 2.0, play_radius - 1.0, 0.9):
+	for spot in _scatter(rock_count, clearing_radius, play_radius - 1.0, 0.9):
 		var size := _rng.randf_range(0.5, 1.6)
 		var squash := Vector3(_rng.randf_range(0.9, 1.25), _rng.randf_range(0.6, 1.0), 1.0) * size
 		var turn_and_squash := Basis(Vector3.UP, _rng.randf() * TAU) * Basis.from_scale(squash)

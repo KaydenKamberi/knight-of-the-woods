@@ -37,3 +37,14 @@ text = "Click to look around
 WASD move  ·  Mouse look  ·  V switch view  ·  Esc free the mouse"
 horizontal_alignment = 1
 vertical_alignment = 2
+
+[node name="WorldTimeLabel" type="Label" parent="."]
+offset_left = 24.0
+offset_top = 18.0
+offset_right = 324.0
+offset_bottom = 52.0
+theme_override_colors/font_color = Color(1, 1, 1, 0.85)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 0.8)
+theme_override_constants/outline_size = 5
+theme_override_font_sizes/font_size = 20
+text = "World time 100%"

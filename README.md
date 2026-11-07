@@ -42,6 +42,28 @@ If a PC has a touch screen, the last thing you used wins: touching the screen sh
 - **`scenes/knight.tscn`** + **`scripts/knight.gd`**: the knight, built from simple low-poly shapes, with walking, camera look and the view switch. Speed, mouse and touch sensitivity, and camera distance can be changed on the `Knight` node in the Inspector.
 - **`ui/hud.tscn`** + **`scripts/hud.gd`** + **`scripts/touch_controls.gd`**: the on-screen joystick, drag-to-look, camera icon, and the PC controls hint.
 - **`ui/helmet_eye_slit.gdshader`**: the dark helmet edges and eye slit shown in first person.
+- **`scripts/world_time.gd`**: the time mechanic (autoload, reachable from any script as `WorldTime`). See below.
+- **`scenes/swinging_log.tscn`** + **`scripts/swinging_log.gd`**: a log on two ropes in front of the start point, for checking that the world slows down.
+
+## Time mechanic
+
+World time runs at full speed while you move, look around or act, and slows to about 5% when you stand still. It blends between the two instead of snapping.
+
+- **What counts as acting:** walking (keys or joystick), still sliding to a stop or falling, and turning the camera (mouse or touch drag). Throwing and swinging will call `WorldTime.report_activity()` when they arrive in M3.
+- **What slows down:** everything on Godot's normal clock. That's physics, `delta` in `_process`/`_physics_process`, animations, tweens, timers, and sound speed. It works through `Engine.time_scale`, so new things follow world time without extra code. Particles aren't in the game yet: check they slow down too when the first ones are added, and if not, set their speed from `WorldTime.speed`.
+- **What stays in real time:** the camera look, the first/third-person glide, and the HUD.
+
+**Tuning:** all the numbers are at the top of `scripts/world_time.gd`:
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `slow_speed` | `0.05` | World speed when standing still (0.05 = 5%) |
+| `speed_up_time` | `0.15` | Real seconds to blend up to full speed after you act |
+| `slow_down_time` | `0.35` | Real seconds to blend down to slow speed after you stop |
+| `activity_hold` | `0.1` | How long one small action (a mouse twitch, a tap) keeps time running |
+| `enabled` | `true` | Set to `false` to turn the mechanic off |
+
+The "World time" readout in the top-left corner shows the current speed. Turn it off with **Show World Time** on the `HUD` node.
 
 ## Install export templates first
 
