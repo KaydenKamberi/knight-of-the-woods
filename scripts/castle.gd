@@ -9,23 +9,25 @@ extends Node3D
 ## knight's colours) hang by the gate and inside the courtyard.
 ##
 ## The walls and towers have collision on the world layer, so nothing walks
-## through them and the third-person camera's spring arm stops at them. Enemies
+## through them and the third-person camera's spring arm stops at them. They're
+## also occluders, so whatever hides behind them isn't drawn (F-1; occlusion
+## culling works on PC, not in the web build, which has no occlusion culling). Enemies
 ## never attack the castle; it's the home base. In the game (not the editor) the
 ## castle also places the furnace site in the courtyard and puts the knight at
 ## his starting spot. Sizes live in game_config.gd.
 
 const Config := preload("res://scripts/game_config.gd")
+const Art := preload("res://scripts/art.gd")
 const FURNACE_SITE := preload("res://scripts/furnace_site.gd")
-const STONE := Color(0.56, 0.55, 0.51)
-const DARK_STONE := Color(0.4, 0.39, 0.37)
-const FLOOR := Color(0.47, 0.45, 0.4)
-const ROOF := Color(0.28, 0.32, 0.42)
-## The same green and gold as the knight's tabard and emblem.
-const GREEN := Color(0.16, 0.38, 0.22)
-const GOLD := Color(0.86, 0.68, 0.22)
-const WOOD := Color(0.4, 0.27, 0.16)
+# Colours from the shared palette (game_config.gd). Green and gold match the knight.
+const STONE: Color = Config.PALETTE["stone"]
+const DARK_STONE: Color = Config.PALETTE["dark_stone"]
+const FLOOR: Color = Config.PALETTE["courtyard"]
+const ROOF: Color = Config.PALETTE["roof"]
+const GREEN: Color = Config.PALETTE["knight_green"]
+const GOLD: Color = Config.PALETTE["knight_gold"]
+const WOOD: Color = Config.PALETTE["wood"]
 
-var _materials := {}
 var _built: Node3D
 
 
@@ -39,6 +41,8 @@ func _ready() -> void:
 		site.position = Config.FURNACE_OFFSET
 		add_child(site)
 		_place_knight.call_deferred()
+		# The castle's shadow counts as scenery: only on High.
+		Graphics.register_shadow_caster(_built, false)
 
 
 ## The point just outside the gate, in world space. Rescuers and the army march out from here.
@@ -183,7 +187,7 @@ func _banner(at: Vector3) -> void:
 
 # --- Helpers -----------------------------------------------------------------------
 
-## A box that's drawn and collides.
+## A box that's drawn, collides, and hides what's behind it.
 func _solid(walls: StaticBody3D, size: Vector3, at: Vector3, color: Color) -> void:
 	_visual(size, at, color)
 	var shape := BoxShape3D.new()
@@ -192,6 +196,12 @@ func _solid(walls: StaticBody3D, size: Vector3, at: Vector3, color: Color) -> vo
 	collision.shape = shape
 	collision.position = at
 	walls.add_child(collision)
+	var box := BoxOccluder3D.new()
+	box.size = size * 0.95
+	var occluder := OccluderInstance3D.new()
+	occluder.occluder = box
+	occluder.position = at
+	_built.add_child(occluder)
 
 
 ## A box that's only drawn.
@@ -210,11 +220,6 @@ func _add_box(parent: Node3D, size: Vector3, at: Vector3, color: Color) -> MeshI
 	return mesh
 
 
-## One material per colour, shared by every box of that colour.
-func _material(color: Color) -> StandardMaterial3D:
-	if not _materials.has(color):
-		var material := StandardMaterial3D.new()
-		material.albedo_color = color
-		material.roughness = 1.0
-		_materials[color] = material
-	return _materials[color]
+## The toon material for a colour (shared by every box of that colour).
+func _material(color: Color) -> Material:
+	return Art.material(color)

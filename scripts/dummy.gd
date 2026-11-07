@@ -39,6 +39,12 @@ const MiniBosses := preload("res://scripts/mini_bosses.gd")
 const Config := preload("res://scripts/game_config.gd")
 const LootDrops := preload("res://scripts/loot_drops.gd")
 const Effects := preload("res://scripts/effects.gd")
+const Art := preload("res://scripts/art.gd")
+const Fx := preload("res://scripts/fx.gd")
+
+## Every defeated dummy whose pieces are still lying around, oldest first. When
+## there are more than the graphics setting allows, the oldest are cleared.
+static var _fallen: Array = []
 const ICE_COLOR := Color(0.6, 0.85, 1.0)
 
 @export var max_health := Config.DUMMY_HEALTH
@@ -102,6 +108,13 @@ var _slow_factor := 1.0
 var _head_ice: MeshInstance3D
 var _stomp_cooldown_left := 0.0
 var _stomp_ring: MeshInstance3D
+var _frost: Node3D
+# F-4: far from the knight, the dummy only thinks every few physics frames.
+var _far_check_left := 0.0
+var _is_far := false
+var _skipped_delta := 0.0
+var _skipped_frames := 0
+var _cleared := false
 ## The cloth materials and their normal colours, so freezing can tint them icy and back.
 var _body_materials := {}
 
@@ -116,6 +129,8 @@ func _ready() -> void:
 	add_to_group("dummies")
 	_fit_collision_to_size()
 	_build_body()
+	# Bosses keep their shadow on Medium; regular dummies only cast one on High.
+	Graphics.register_shadow_caster(self, is_boss())
 
 
 ## Turns this dummy into the given wave's mini boss. Call before adding it to the scene.
@@ -148,12 +163,29 @@ func is_boss() -> bool:
 
 
 func _physics_process(delta: float) -> void:
+	# F-4: a walking dummy far from the knight thinks every FAR_AI_FRAME_SKIP frames,
+	# catching up on the time it skipped (so it still follows world time). It keeps
+	# moving every frame so it doesn't stutter.
+	_far_check_left -= delta
+	if _far_check_left <= 0.0:
+		_far_check_left = 0.5
+		_is_far = _far_from_knight()
+	if _is_far and state == State.WALKING and _frozen_left <= 0.0:
+		_skipped_delta += delta
+		_skipped_frames += 1
+		if _skipped_frames < Config.FAR_AI_FRAME_SKIP:
+			move_and_slide()
+			return
+		delta = _skipped_delta
+		_skipped_delta = 0.0
+		_skipped_frames = 0
 	_slow_left = maxf(_slow_left - delta, 0.0)
 	if _frozen_left > 0.0:
 		# Frozen solid: no walking or swinging until it thaws.
 		_frozen_left -= delta
 		if _frozen_left <= 0.0:
 			_set_ice_tint(false)
+			_stop_frost()
 		if state == State.WALKING or state == State.ATTACKING:
 			return
 	# A slowed dummy does everything at a fraction of its speed (Cryo armour, R-10).
@@ -200,6 +232,8 @@ func freeze(seconds: float) -> void:
 		return
 	_frozen_left = maxf(_frozen_left, seconds)
 	_set_ice_tint(true)
+	if not is_instance_valid(_frost):
+		_frost = Fx.frost_on(_body, size_scale)
 
 
 ## Slows the dummy to `factor` of its speed for `seconds` (Cryo armour, R-10).
@@ -235,6 +269,7 @@ func freeze_head() -> void:
 func shatter_head(from: Vector3) -> void:
 	if not has_frozen_head():
 		return
+	Fx.ice_shatter(_head_ice.global_position, size_scale)
 	_head_ice.queue_free()
 	_head_ice = null
 	if is_big_boss:
@@ -263,6 +298,10 @@ func take_projectile_hit(collider: Object, point: Vector3, direction: Vector3, d
 
 func _apply_hit(part: Dictionary, damage: int, direction: Vector3, push: float, knockdown := true) -> void:
 	if state != State.DEFEATED:
+		# Sparks where it was hit, and a short white flash.
+		var mesh: Node3D = part["mesh"]
+		Fx.hit_sparks(mesh.global_position - direction * 0.2 * size_scale)
+		Art.flash(_body_materials.keys(), self)
 		health = maxi(health - damage, 0)
 		health_changed.emit(health, max_health)
 		if health == 0:
@@ -271,6 +310,7 @@ func _apply_hit(part: Dictionary, damage: int, direction: Vector3, push: float, 
 			_start(State.DEFEATED)
 			remove_from_group("dummies")
 			_set_ice_tint(false)
+			_stop_frost()
 			LootDrops.drop_from(self, is_mini_boss)
 			defeated.emit()
 		elif not ragdoll_on_hit or not knockdown:
@@ -394,9 +434,23 @@ func _update_target(delta: float) -> void:
 
 
 func _set_ice_tint(frozen: bool) -> void:
-	for material: StandardMaterial3D in _body_materials:
+	for material in _body_materials:
 		var normal: Color = _body_materials[material]
-		material.albedo_color = normal.lerp(ICE_COLOR, 0.65) if frozen else normal
+		Art.set_color(material, normal.lerp(ICE_COLOR, 0.65) if frozen else normal)
+
+
+func _stop_frost() -> void:
+	if is_instance_valid(_frost):
+		_frost.queue_free()
+	_frost = null
+
+
+## True when the knight is far enough away for the simpler AI (never for the big boss).
+func _far_from_knight() -> bool:
+	if is_big_boss:
+		return false
+	var knight := get_tree().get_first_node_in_group("player") as Node3D
+	return knight != null and global_position.distance_to(knight.global_position) > Config.FAR_AI_DISTANCE
 
 
 func _is_good_target(candidate) -> bool:
@@ -606,12 +660,24 @@ func _fall_apart() -> void:
 			body.linear_velocity += Vector3(randf_range(-1.5, 1.5), randf_range(0.5, 2.0), randf_range(-1.5, 1.5))
 			body.angular_velocity += Vector3(randf_range(-4, 4), randf_range(-4, 4), randf_range(-4, 4))
 	set_physics_process(false)
-	# The timer runs on world time and stops while the game is paused.
-	get_tree().create_timer(debris_lifetime, false).timeout.connect(_clear_debris)
+	# How long the pieces stay, and how many fallen dummies at once, come from the
+	# graphics setting. The timer runs on world time and stops while paused.
+	var lifetime: float = Graphics.setting("debris_lifetime", debris_lifetime)
+	get_tree().create_timer(lifetime, false).timeout.connect(_clear_debris)
+	_fallen = _fallen.filter(func(other) -> bool: return is_instance_valid(other) and not other._cleared)
+	_fallen.append(self)
+	var keep: int = Graphics.setting("ragdolls_kept", 20)
+	while _fallen.size() > keep:
+		var oldest = _fallen.pop_front()
+		if is_instance_valid(oldest):
+			oldest._clear_debris()
 
 
 ## Shrinks the pieces away, then removes the dummy (and any knives stuck in it).
 func _clear_debris() -> void:
+	if _cleared:
+		return
+	_cleared = true
 	var shrink := create_tween().set_parallel()
 	for part in _parts:
 		shrink.tween_property(part["mesh"], "scale", Vector3.ONE * 0.01, 0.6)
@@ -685,13 +751,14 @@ func _part_specs() -> Array[Dictionary]:
 
 
 func _build_body() -> void:
+	# Each dummy has its own body materials, so it can flash white or turn icy alone.
 	var materials := {
-		"cloth": _material(cloth_color),
-		"limb": _material(cloth_color.darkened(0.14)),
-		"head": _material(cloth_color.lightened(0.1)),
+		"cloth": _body_material(cloth_color),
+		"limb": _body_material(cloth_color.darkened(0.14)),
+		"head": _body_material(cloth_color.lightened(0.1)),
 	}
 	for key in materials:
-		_body_materials[materials[key]] = materials[key].albedo_color
+		_body_materials[materials[key]] = Art.get_color(materials[key])
 	var joints := {}
 	for spec in _part_specs():
 		var parent_name: String = spec["parent"]
@@ -753,11 +820,7 @@ func _add_details() -> void:
 		MiniBosses.add_headgear(head, headgear, 0.3 * k, 0.3 * k)
 	if is_big_boss:
 		# Glowing red eyes behind the stitches.
-		var glow := StandardMaterial3D.new()
-		glow.albedo_color = Color(1.0, 0.2, 0.1)
-		glow.emission_enabled = true
-		glow.emission = Color(1.0, 0.15, 0.05)
-		glow.emission_energy_multiplier = 3.0
+		var glow := Art.material(Color(1.0, 0.2, 0.1), {"emission": Color(1.0, 0.15, 0.05), "energy": 3.0})
 		for x in [-0.07, 0.07]:
 			_add_box(head, Vector3(0.06, 0.05, 0.01) * k, glow, Vector3(x, 0.03, -0.151) * k)
 
@@ -765,6 +828,8 @@ func _add_details() -> void:
 	_add_box(pelvis, Vector3(0.38, 0.05, 0.26) * k, stitch, Vector3(0, 0.08, 0) * k)
 
 
+## A small detail box (eyes, straw, belt). Beyond LOD_DETAIL_DISTANCE these are
+## hidden, so far-away dummies are simpler (F-2); the big boss keeps every detail.
 func _add_box(parent: Node3D, size: Vector3, material: Material, at: Vector3, tilt := 0.0) -> void:
 	var box := BoxMesh.new()
 	box.size = size
@@ -772,6 +837,7 @@ func _add_box(parent: Node3D, size: Vector3, material: Material, at: Vector3, ti
 	var mesh := MeshInstance3D.new()
 	mesh.mesh = box
 	mesh.transform = Transform3D(Basis(Vector3.BACK, tilt), at)
+	_detail_lod(mesh)
 	parent.add_child(mesh)
 
 
@@ -787,11 +853,20 @@ func _add_disc(parent: Node3D, radius: float, material: Material, at: Vector3) -
 	var mesh := MeshInstance3D.new()
 	mesh.mesh = disc
 	mesh.transform = Transform3D(Basis(Vector3.RIGHT, PI / 2.0), at)
+	_detail_lod(mesh)
 	parent.add_child(mesh)
 
 
-func _material(color: Color) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.roughness = 1.0
-	return material
+## A shared toon material for small details.
+func _material(color: Color) -> Material:
+	return Art.material(color)
+
+
+## A body material of this dummy's own, with the character rim light.
+func _body_material(color: Color) -> Material:
+	return Art.material(color, {"rim": true, "unique": true})
+
+
+func _detail_lod(mesh: GeometryInstance3D) -> void:
+	if not is_big_boss:
+		mesh.visibility_range_end = Config.LOD_DETAIL_DISTANCE * maxf(size_scale, 1.0)

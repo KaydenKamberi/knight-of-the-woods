@@ -25,6 +25,8 @@ signal crafting_menu_toggled(open: bool)
 const TouchControls := preload("res://scripts/touch_controls.gd")
 const CraftingMenu := preload("res://scripts/crafting_menu.gd")
 const FurnaceMenu := preload("res://scripts/furnace_menu.gd")
+const PauseMenu := preload("res://scripts/pause_menu.gd")
+const TITLE_SCENE := "res://scenes/title.tscn"
 const Config := preload("res://scripts/game_config.gd")
 const HOTBAR_SLOTS := 9
 
@@ -41,6 +43,9 @@ var _crafting_available := false
 var _knives_left := 0
 var _crafting_menu: CraftingMenu
 var _furnace_menu: FurnaceMenu
+var _pause_menu: PauseMenu
+## True during the victory camera pan (no pausing then).
+var _in_cutscene := false
 var _final_wave := false
 var _hotbar_slots: Array[Label] = []
 var _slot_style: StyleBoxFlat
@@ -77,6 +82,7 @@ var _selected_style: StyleBoxFlat
 @onready var _big_boss_name: Label = $BigBoss/Bar/Name
 @onready var _end_stats: Label = $GameOver/Center/Stats
 @onready var _quit_button: Button = $GameOver/Center/QuitButton
+@onready var _main_menu_button: Button = $GameOver/Center/MainMenuButton
 
 
 func _ready() -> void:
@@ -84,6 +90,13 @@ func _ready() -> void:
 	_touch_controls.look_dragged.connect(func(relative: Vector2) -> void: look_dragged.emit(relative))
 	_restart_button.pressed.connect(_on_restart_pressed)
 	_quit_button.pressed.connect(_on_quit_pressed)
+	_main_menu_button.pressed.connect(go_to_main_menu)
+	_pause_menu = PauseMenu.new()
+	_pause_menu.name = "PauseMenu"
+	_pause_menu.visible = false
+	_pause_menu.resume_requested.connect(close_pause)
+	_pause_menu.main_menu_requested.connect(go_to_main_menu)
+	add_child(_pause_menu)
 	_build_hotbar()
 	_furnace_menu = FurnaceMenu.new()
 	_furnace_menu.name = "FurnaceMenu"
@@ -114,6 +127,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("pause") and _crafting_menu.visible:
 		close_crafting()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("pause"):
+		open_pause()
 		get_viewport().set_input_as_handled()
 
 
@@ -164,9 +180,40 @@ func set_pickup_prompt(prompt: String, button := "GRAB") -> void:
 	_touch_controls.grab_label = button
 
 
-## Freezes the game and shows the game-over screen.
+## Freezes the game and shows the game-over screen: how far you got, Try Again
+## (a fresh run from wave 1) and Main Menu.
 func show_game_over() -> void:
+	var waves = get_tree().get_first_node_in_group("wave_manager")
+	if waves != null:
+		var stats: Dictionary = waves.stats()
+		_end_stats.text = "You reached wave %d\nEnemies defeated: %d" % [maxi(waves.wave, 1), stats.get("enemies", 0)]
+		_end_stats.visible = true
+	_restart_button.text = "Try Again"
 	_show_end_screen("You have fallen", "The dummies got the better of you.")
+
+
+# --- Pausing ----------------------------------------------------------------------
+
+## Esc on PC, or the pause icon: freezes the game and shows the pause menu.
+func open_pause() -> void:
+	if _pause_menu.visible or _game_over.visible or _in_cutscene:
+		return
+	get_tree().paused = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_touch_controls.visible = false
+	_pause_menu.open()
+
+
+func close_pause() -> void:
+	_pause_menu.visible = false
+	get_tree().paused = false
+	_touch_controls.visible = touch_mode and not _game_over.visible
+
+
+func go_to_main_menu() -> void:
+	get_tree().paused = false
+	WorldTime.clear_override()
+	get_tree().change_scene_to_file(TITLE_SCENE)
 
 
 # --- Crafting -------------------------------------------------------------------
@@ -397,6 +444,7 @@ func on_army_marched_out(count: int) -> void:
 
 ## Clears the screen for the camera pan over the castle.
 func hide_for_cutscene() -> void:
+	_in_cutscene = true
 	close_crafting()
 	close_furnace_menu()
 	for node: CanvasItem in [_status, _wave_info, _big_boss_panel, _hotbar, _crosshair,

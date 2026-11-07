@@ -1,39 +1,45 @@
 [gd_scene format=3]
 
+[ext_resource type="Shader" path="res://shaders/toon.gdshader" id="toon_shader"]
+
 [ext_resource type="Script" path="res://scripts/knight.gd" id="1_knight"]
 [ext_resource type="Shader" path="res://ui/helmet_eye_slit.gdshader" id="2_slit"]
 [ext_resource type="Script" path="res://scripts/knight_weapons.gd" id="3_weapons"]
 
-[sub_resource type="StandardMaterial3D" id="Mat_steel"]
-albedo_color = Color(0.62, 0.65, 0.7, 1)
-metallic = 0.55
-roughness = 0.45
+[sub_resource type="ShaderMaterial" id="Mat_steel"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.62, 0.65, 0.7, 1)
+shader_parameter/rim_strength = 0.35
 
-[sub_resource type="StandardMaterial3D" id="Mat_dark_steel"]
-albedo_color = Color(0.27, 0.29, 0.32, 1)
-metallic = 0.5
-roughness = 0.55
+[sub_resource type="ShaderMaterial" id="Mat_dark_steel"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.27, 0.29, 0.32, 1)
+shader_parameter/rim_strength = 0.35
 
-[sub_resource type="StandardMaterial3D" id="Mat_tabard"]
-albedo_color = Color(0.16, 0.38, 0.22, 1)
-roughness = 0.9
+[sub_resource type="ShaderMaterial" id="Mat_tabard"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.16, 0.38, 0.22, 1)
+shader_parameter/rim_strength = 0.35
 
-[sub_resource type="StandardMaterial3D" id="Mat_cape"]
-albedo_color = Color(0.55, 0.12, 0.12, 1)
-roughness = 0.9
+[sub_resource type="ShaderMaterial" id="Mat_cape"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.55, 0.12, 0.12, 1)
+shader_parameter/rim_strength = 0.35
 
-[sub_resource type="StandardMaterial3D" id="Mat_leather"]
-albedo_color = Color(0.36, 0.23, 0.13, 1)
-roughness = 0.85
+[sub_resource type="ShaderMaterial" id="Mat_leather"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.36, 0.23, 0.13, 1)
+shader_parameter/rim_strength = 0.35
 
-[sub_resource type="StandardMaterial3D" id="Mat_visor"]
-albedo_color = Color(0.03, 0.03, 0.04, 1)
-roughness = 1.0
+[sub_resource type="ShaderMaterial" id="Mat_visor"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.03, 0.03, 0.04, 1)
+shader_parameter/rim_strength = 0.35
 
-[sub_resource type="StandardMaterial3D" id="Mat_gold"]
-albedo_color = Color(0.86, 0.68, 0.22, 1)
-metallic = 0.7
-roughness = 0.4
+[sub_resource type="ShaderMaterial" id="Mat_gold"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.86, 0.68, 0.22, 1)
+shader_parameter/rim_strength = 0.35
 
 [sub_resource type="BoxMesh" id="Box_leg"]
 material = SubResource("Mat_dark_steel")

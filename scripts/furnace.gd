@@ -5,8 +5,10 @@ extends StaticBody3D
 ## mouth. Between smelts the fire just glows faintly.
 
 const Effects := preload("res://scripts/effects.gd")
-const STONE := Color(0.52, 0.5, 0.47)
-const DARK_STONE := Color(0.36, 0.34, 0.32)
+const Art := preload("res://scripts/art.gd")
+const Fx := preload("res://scripts/fx.gd")
+const STONE := Color(0.62, 0.62, 0.6)
+const DARK_STONE := Color(0.45, 0.46, 0.46)
 const FIRE := Color(1.0, 0.45, 0.1)
 ## Where the fire's mouth is, on the furnace's front (-Z) side.
 const MOUTH := Vector3(0, 0.45, -0.61)
@@ -14,22 +16,19 @@ const EMBER_GLOW := 0.3
 const EMBER_LIGHT := 0.15
 
 var _model: Node3D
-var _glow: StandardMaterial3D
+var _glow: Material
 var _light: OmniLight3D
 
 
 ## Builds the furnace's shape under `parent`. With `override`, every part uses
 ## that material (the see-through hologram). Returns the fire's material.
-static func build_model(parent: Node3D, override: Material = null) -> StandardMaterial3D:
+static func build_model(parent: Node3D, override: Material = null) -> Material:
 	_box(parent, Vector3(1.4, 1.1, 1.2), Vector3(0, 0.55, 0), STONE, override)
 	_box(parent, Vector3(1.5, 0.15, 1.3), Vector3(0, 1.15, 0), DARK_STONE, override)
 	_box(parent, Vector3(1.0, 0.5, 0.9), Vector3(0, 1.45, 0), STONE, override)
 	_box(parent, Vector3(0.4, 1.0, 0.4), Vector3(0.3, 2.2, 0.2), DARK_STONE, override)
-	var glow := StandardMaterial3D.new()
-	glow.albedo_color = FIRE
-	glow.emission_enabled = true
-	glow.emission = FIRE
-	glow.emission_energy_multiplier = EMBER_GLOW
+	# The fire has a material of its own, so it can flare up when smelting.
+	var glow := Art.material(FIRE, {"emission": FIRE, "energy": EMBER_GLOW, "unique": true})
 	_box(parent, Vector3(0.6, 0.45, 0.05), MOUTH, FIRE, override if override != null else glow)
 	return glow
 
@@ -40,10 +39,7 @@ static func _box(parent: Node3D, size: Vector3, at: Vector3, color: Color, mater
 	if material != null:
 		box.material = material
 	else:
-		var plain := StandardMaterial3D.new()
-		plain.albedo_color = color
-		plain.roughness = 1.0
-		box.material = plain
+		box.material = Art.material(color)
 	var mesh := MeshInstance3D.new()
 	mesh.mesh = box
 	mesh.position = at
@@ -78,9 +74,10 @@ func _ready() -> void:
 
 ## The fire flares up for a moment: called each time something is smelted.
 func flame_burst() -> void:
-	_glow.emission_energy_multiplier = 4.0
+	Art.set_emission(_glow, FIRE, 4.0)
 	_light.light_energy = 2.5
 	var settle := create_tween().set_parallel()
-	settle.tween_property(_glow, "emission_energy_multiplier", EMBER_GLOW, 0.6)
+	settle.tween_property(_glow, "shader_parameter/emission_energy", EMBER_GLOW, 0.6)
 	settle.tween_property(_light, "light_energy", EMBER_LIGHT, 0.6)
 	Effects.burst(to_global(MOUTH + Vector3(0, 0, -0.2)), 0.7, FIRE, get_tree().current_scene)
+	Fx.furnace_sparks(to_global(MOUTH + Vector3(0, 0.1, -0.3)))

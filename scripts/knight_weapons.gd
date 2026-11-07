@@ -24,7 +24,9 @@ signal hotbar_changed
 const Config := preload("res://scripts/game_config.gd")
 const WeaponModels := preload("res://scripts/weapon_models.gd")
 const Effects := preload("res://scripts/effects.gd")
+const Fx := preload("res://scripts/fx.gd")
 const ARROW_SCENE := preload("res://scenes/arrow.tscn")
+const Pool := preload("res://scripts/pool.gd")
 const BLASTER_ROUND := preload("res://scripts/blaster_round.gd")
 const ICE := Color(0.55, 0.85, 1.0)
 ## A melee target has to be within this angle of where the knight is aiming (as a dot product).
@@ -137,7 +139,8 @@ func slam() -> void:
 	_knight.play_swing()
 	WorldTime.bump()
 	var center: Vector3 = _knight.global_position
-	Effects.burst(center, Config.HAMMER_SLAM_RADIUS, ICE, get_tree().current_scene)
+	Effects.burst(center, Config.HAMMER_SLAM_RADIUS * 0.6, ICE, get_tree().current_scene)
+	Fx.ice_ring(center, Config.HAMMER_SLAM_RADIUS, get_tree().current_scene)
 	for enemy in _enemies_within(center, Config.HAMMER_SLAM_RADIUS):
 		# Weakened regular dummies shatter outright; everyone else takes the hit and freezes.
 		if not enemy.is_boss() and enemy.health_fraction() < Config.HAMMER_SLAM_SHATTER_BELOW:
@@ -202,7 +205,9 @@ func _shoot_arrow(stats: Dictionary) -> void:
 	WorldTime.bump()
 	_knight.play_swing()
 	var start: Vector3 = _knight.throw_start()
-	var arrow = ARROW_SCENE.instantiate()
+	var arrow = Pool.take("arrow")
+	if arrow == null:
+		arrow = ARROW_SCENE.instantiate()
 	get_tree().current_scene.add_child(arrow)
 	arrow.launch(start, _knight.throw_direction(start), stats["damage"])
 

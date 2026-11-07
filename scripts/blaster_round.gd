@@ -4,7 +4,8 @@ extends Node3D
 ## the blast with BLASTER damage. Mini bosses go down in one hit (R-17).
 
 const Config := preload("res://scripts/game_config.gd")
-const Effects := preload("res://scripts/effects.gd")
+const Art := preload("res://scripts/art.gd")
+const Fx := preload("res://scripts/fx.gd")
 const HIT_MASK := 1 | 8 | 16
 const GRAVITY := 9.8
 const COLOR := Color(0.8, 0.35, 1.0)
@@ -14,11 +15,7 @@ var _age := 0.0
 
 
 func _ready() -> void:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = COLOR
-	material.emission_enabled = true
-	material.emission = COLOR
-	material.emission_energy_multiplier = 2.0
+	var material := Art.material(COLOR, {"emission": COLOR, "energy": 2.5})
 	var sphere := SphereMesh.new()
 	sphere.radius = 0.12
 	sphere.height = 0.24
@@ -28,6 +25,8 @@ func _ready() -> void:
 	var mesh := MeshInstance3D.new()
 	mesh.mesh = sphere
 	add_child(mesh)
+	# A glowing trail behind the round.
+	Fx.blaster_trail(self)
 
 
 func launch(from: Vector3, launch_velocity: Vector3) -> void:
@@ -53,7 +52,7 @@ func _physics_process(delta: float) -> void:
 
 func _explode(at: Vector3) -> void:
 	set_physics_process(false)
-	Effects.burst(at, Config.BLASTER_BLAST_RADIUS, COLOR, get_tree().current_scene)
+	Fx.explosion(at, Config.BLASTER_BLAST_RADIUS, get_tree().current_scene)
 	var damage: int = Config.WEAPONS["ultra_blaster"]["damage"]
 	var enemies: Array = get_tree().get_nodes_in_group("dummies")
 	for enemy in enemies:

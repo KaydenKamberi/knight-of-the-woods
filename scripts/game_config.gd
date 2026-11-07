@@ -227,3 +227,88 @@ const ARMOR_REFLECT := 0.25
 const ARMOR_SLOW := 0.5
 const ARMOR_SLOW_TIME := 1.0
 
+
+# --- The look: palette and toon shading (M7 art pass) -----------------------------
+
+## One shared palette, used by every material in the game.
+const PALETTE := {
+	"sky_top": Color("8fc0b8"),
+	"sky_horizon": Color("c4dccf"),
+	"fog": Color("b7d3c6"),
+	"ground": Color("7fae6a"),
+	"sand": Color("e6d3a3"),
+	"leaf_1": Color("5f9e5a"),
+	"leaf_2": Color("7cbf6b"),
+	"leaf_3": Color("3f7a4f"),
+	"pine": Color("4f8c63"),
+	"trunk": Color("6b4a35"),
+	"rock": Color("9aa3a0"),
+	"stone": Color("a9aeab"),
+	"dark_stone": Color("7f8784"),
+	"courtyard": Color("b6ad98"),
+	"roof": Color("5d6f86"),
+	"wood": Color("7a5236"),
+	"berry": Color("c0392b"),
+	"flower_1": Color("f2d16b"),
+	"flower_2": Color("e88fb4"),
+	"flower_3": Color("f4f1e8"),
+	"grass_base": Color("4f8a4c"),
+	"grass_tip": Color("a8d07a"),
+	"knight_green": Color(0.16, 0.38, 0.22),
+	"knight_gold": Color(0.86, 0.68, 0.22),
+	"steel": Color(0.66, 0.7, 0.74),
+}
+## Toon shading: the tint of the shadow side, how much light reaches it, the
+## brightness of the middle band, where the bands start, how soft their edges
+## are, and the rim light on characters.
+const TOON_SHADOW_TINT := Color(0.22, 0.4, 0.46)
+const TOON_SHADOW_FILL := 0.55
+const TOON_MID_LEVEL := 0.68
+const TOON_THRESHOLD_LOW := 0.08
+const TOON_THRESHOLD_HIGH := 0.45
+const TOON_SOFTNESS := 0.03
+const TOON_RIM_COLOR := Color(1.0, 0.97, 0.88)
+## Rim light strength on characters (the knight, enemies, soldiers).
+const CHARACTER_RIM := 0.35
+
+# --- Graphics settings (M7, F-3, F-5) ----------------------------------------------
+
+## The three graphics levels. Changing a number here changes that level.
+## shadows: "off", "important" (knight and bosses) or "all".
+## view_distance: metres; scenery fades out over the last FADE_BAND metres.
+## grass: share of grass blades drawn (0 = flat painted ground).
+## effects: share of particles (1 = full). floating_leaves: how many drift around.
+## ragdolls_kept: defeated enemies whose pieces stay on the ground at once.
+const GRAPHICS_LEVELS := {
+	"low": {"shadows": "off", "render_scale": 0.6, "view_distance": 38.0, "grass": 0.0,
+			"grass_wind": 0.0, "leaf_sway": 0.0, "toon_steps": 2.0, "rim": 0.0,
+			"color_grade": false, "effects": 0.35, "floating_leaves": 0,
+			"ragdolls_kept": 3, "debris_lifetime": 4.0},
+	"medium": {"shadows": "important", "render_scale": 0.8, "view_distance": 55.0, "grass": 0.5,
+			"grass_wind": 0.6, "leaf_sway": 1.0, "toon_steps": 3.0, "rim": 1.0,
+			"color_grade": true, "effects": 0.65, "floating_leaves": 12,
+			"ragdolls_kept": 8, "debris_lifetime": 8.0},
+	"high": {"shadows": "all", "render_scale": 1.0, "view_distance": 80.0, "grass": 1.0,
+			"grass_wind": 1.0, "leaf_sway": 1.0, "toon_steps": 3.0, "rim": 1.0,
+			"color_grade": true, "effects": 1.0, "floating_leaves": 30,
+			"ragdolls_kept": 20, "debris_lifetime": 12.0},
+}
+const GRAPHICS_ORDER := ["low", "medium", "high"]
+const FADE_BAND := 10.0
+## Grass blades across the forest on High, and the size of each MultiMesh chunk
+## (trees, rocks, grass), in metres. Chunks let the camera skip what it can't see.
+const GRASS_BLADES := 9000
+const SCENERY_CHUNK := 24.0
+
+# --- Performance (F-2, F-4) ---------------------------------------------------------
+
+## Dummies, soldiers and mini bosses farther than this lose their small details (F-2).
+const LOD_DETAIL_DISTANCE := 22.0
+## Enemies and soldiers farther than this think every FAR_AI_FRAME_SKIP physics frames (F-4).
+const FAR_AI_DISTANCE := 30.0
+const FAR_AI_FRAME_SKIP := 4
+
+# --- Title screen (M7) --------------------------------------------------------------
+
+## Working title, shown on the title screen.
+const GAME_TITLE := "Knight of the Still Woods"

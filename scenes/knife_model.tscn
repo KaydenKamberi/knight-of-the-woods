@@ -1,18 +1,21 @@
 [gd_scene format=3]
 
-[sub_resource type="StandardMaterial3D" id="Mat_blade"]
-albedo_color = Color(0.78, 0.8, 0.84, 1)
-metallic = 0.7
-roughness = 0.35
+[ext_resource type="Shader" path="res://shaders/toon.gdshader" id="toon_shader"]
 
-[sub_resource type="StandardMaterial3D" id="Mat_grip"]
-albedo_color = Color(0.3, 0.18, 0.1, 1)
-roughness = 0.9
+[sub_resource type="ShaderMaterial" id="Mat_blade"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.78, 0.8, 0.84, 1)
+shader_parameter/rim_strength = 0.2
 
-[sub_resource type="StandardMaterial3D" id="Mat_brass"]
-albedo_color = Color(0.78, 0.6, 0.25, 1)
-metallic = 0.6
-roughness = 0.45
+[sub_resource type="ShaderMaterial" id="Mat_grip"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.3, 0.18, 0.1, 1)
+shader_parameter/rim_strength = 0.2
+
+[sub_resource type="ShaderMaterial" id="Mat_brass"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.78, 0.6, 0.25, 1)
+shader_parameter/rim_strength = 0.2
 
 [sub_resource type="BoxMesh" id="Box_blade"]
 material = SubResource("Mat_blade")

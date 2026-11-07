@@ -10,6 +10,7 @@ extends Node3D
 
 const Config := preload("res://scripts/game_config.gd")
 const HIT_MASK := 1 | 8 | 16
+const Pool := preload("res://scripts/pool.gd")
 
 @export var speed := Config.ARROW_SPEED
 ## How fast the arrow drops while flying, in metres per second per second.
@@ -29,6 +30,7 @@ var _age := 0.0
 ## Starts the arrow flying from `from` in `direction`. Call after adding it to the scene.
 func launch(from: Vector3, direction: Vector3, arrow_damage: int) -> void:
 	damage = arrow_damage
+	_age = 0.0
 	global_position = from
 	velocity = direction.normalized() * speed
 	_face(velocity)
@@ -39,10 +41,11 @@ func _physics_process(delta: float) -> void:
 	_age += delta
 	if not _flying:
 		if _age > stuck_lifetime:
-			queue_free()
+			_recycle.call_deferred()
 		return
 	if _age > flight_lifetime:
-		queue_free()
+		_flying = false
+		_recycle.call_deferred()
 		return
 
 	velocity.y -= drop * delta
@@ -76,6 +79,12 @@ func _on_hit(collider: Object, point: Vector3, direction: Vector3) -> void:
 		stick_to = target.take_projectile_hit(collider, point, direction, damage, hit_push)
 	if stick_to != null:
 		reparent(stick_to, true)
+
+
+## Back to the pool, to be shot again later.
+func _recycle() -> void:
+	_flying = false
+	Pool.give_back("arrow", self)
 
 
 func _face(direction: Vector3) -> void:

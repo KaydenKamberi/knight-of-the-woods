@@ -11,13 +11,14 @@ config_version=5
 [application]
 
 config/name="Knight of the Woods"
-run/main_scene="res://scenes/forest.tscn"
+run/main_scene="res://scenes/title.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
 
 [autoload]
 
 WorldTime="*res://scripts/world_time.gd"
+Graphics="*res://scripts/graphics.gd"
 
 [display]
 
@@ -160,8 +161,68 @@ weapon_9={
 3d_physics/layer_5="debris"
 3d_physics/layer_6="allies"
 
+[shader_globals]
+
+toon_shadow_tint={
+"type": "color",
+"value": Color(0.22, 0.4, 0.46, 1)
+}
+toon_shadow_fill={
+"type": "float",
+"value": 0.55
+}
+toon_mid_level={
+"type": "float",
+"value": 0.68
+}
+toon_threshold_low={
+"type": "float",
+"value": 0.08
+}
+toon_threshold_high={
+"type": "float",
+"value": 0.45
+}
+toon_softness={
+"type": "float",
+"value": 0.03
+}
+toon_steps={
+"type": "float",
+"value": 3.0
+}
+toon_rim={
+"type": "float",
+"value": 1.0
+}
+toon_rim_color={
+"type": "color",
+"value": Color(1, 0.97, 0.88, 1)
+}
+world_time={
+"type": "float",
+"value": 0.0
+}
+leaf_sway={
+"type": "float",
+"value": 1.0
+}
+grass_wind={
+"type": "float",
+"value": 1.0
+}
+fade_start={
+"type": "float",
+"value": 70.0
+}
+fade_end={
+"type": "float",
+"value": 80.0
+}
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+occlusion_culling/use_occlusion_culling=true
 textures/vram_compression/import_etc2_astc=true

@@ -1,18 +1,20 @@
 [gd_scene format=3]
 
+[ext_resource type="Shader" path="res://shaders/toon.gdshader" id="toon_shader"]
+
 [ext_resource type="Script" path="res://scripts/swinging_log.gd" id="1_swing"]
 
-[sub_resource type="StandardMaterial3D" id="Mat_wood"]
-albedo_color = Color(0.42, 0.29, 0.17, 1)
-roughness = 1.0
+[sub_resource type="ShaderMaterial" id="Mat_wood"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.42, 0.29, 0.17, 1)
 
-[sub_resource type="StandardMaterial3D" id="Mat_bark"]
-albedo_color = Color(0.33, 0.22, 0.13, 1)
-roughness = 1.0
+[sub_resource type="ShaderMaterial" id="Mat_bark"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.33, 0.22, 0.13, 1)
 
-[sub_resource type="StandardMaterial3D" id="Mat_rope"]
-albedo_color = Color(0.72, 0.62, 0.42, 1)
-roughness = 1.0
+[sub_resource type="ShaderMaterial" id="Mat_rope"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.72, 0.62, 0.42, 1)
 
 [sub_resource type="BoxMesh" id="Box_post"]
 material = SubResource("Mat_wood")

@@ -110,6 +110,8 @@ func _on_finger_down(finger: int, at: Vector2) -> void:
 		_tap_action(&"switch_camera")
 	elif _lock_button_rect().has_point(at):
 		_tap_action(&"shift_lock")
+	elif _pause_button_rect().has_point(at):
+		_tap_action(&"pause")
 	elif craft_visible and _craft_button_rect().has_point(at):
 		_tap_action(&"craft")
 	elif at.distance_to(size - weapon_button_home) <= small_button_radius:
@@ -187,6 +189,13 @@ func _lock_button_rect() -> Rect2:
 	return rect
 
 
+## The pause icon sits to the left of the camera icon.
+func _pause_button_rect() -> Rect2:
+	var rect := _camera_button_rect()
+	rect.position.x -= camera_button_size + 20.0
+	return rect
+
+
 ## The Craft button sits just below the lock icon.
 func _craft_button_rect() -> Rect2:
 	var rect := _lock_button_rect()
@@ -238,6 +247,13 @@ func _draw() -> void:
 	draw_arc(lc + Vector2(0, -6) * s, 11.0 * s, PI, TAU, 16, lock_color, 4.0 * s, true)
 	draw_rect(Rect2(lc + Vector2(-16, -6) * s, Vector2(32, 26) * s), lock_color)
 	draw_circle(lc + Vector2(0, 5) * s, 4.0 * s, Color(0.1, 0.1, 0.12, 0.95))
+
+	# Pause icon: two bars.
+	var pause_center := _pause_button_rect().get_center()
+	draw_circle(pause_center, camera_button_size * 0.5, Color(0, 0, 0, 0.35))
+	draw_arc(pause_center, camera_button_size * 0.5, 0.0, TAU, 48, Color(1, 1, 1, 0.5), 2.0, true)
+	for x in [-9.0, 5.0]:
+		draw_rect(Rect2(pause_center + Vector2(x, -14) * s, Vector2(6, 28) * s), Color(1, 1, 1, 0.9))
 
 	# Throw button, with a knife drawn on it.
 	var throw_center := _throw_button_center()

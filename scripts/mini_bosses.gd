@@ -21,6 +21,7 @@ const COLORS := [
 ]
 const HEADGEAR := ["crown", "horns", "bucket", "antlers", "hood"]
 const Config := preload("res://scripts/game_config.gd")
+const Art := preload("res://scripts/art.gd")
 
 
 ## Everything about one wave's mini boss: name, colour, headgear and stats.
@@ -95,12 +96,9 @@ static func add_headgear(head: Node3D, kind: String, head_size: float, depth: fl
 
 ## Adds a plain coloured box to `parent` (tilt turns it around the Z axis).
 static func add_box(parent: Node3D, size: Vector3, color: Color, at: Vector3, tilt := 0.0) -> void:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.roughness = 0.8
 	var box := BoxMesh.new()
 	box.size = size
-	box.material = material
+	box.material = Art.material(color, {"rim": true})
 	var mesh := MeshInstance3D.new()
 	mesh.mesh = box
 	mesh.transform = Transform3D(Basis(Vector3.BACK, tilt), at)

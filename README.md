@@ -21,7 +21,7 @@ The full design is in `Knight of the Still Woods — PRD.md`.
 1. Download **Godot 4.7.x (standard)** from <https://godotengine.org/download>.
 2. Start Godot. In the Project Manager, click **Import**, pick this repo's `project.godot`, then click **Import & Edit**.
 3. The first time it opens, Godot imports the files and creates a `.godot/` cache folder (ignored by git).
-4. Press **F5** (or the ▶ Play button). The knight starts in his castle courtyard, facing the gate out to the forest.
+4. Press **F5** (or the ▶ Play button). The title screen opens; press **Play** and the knight starts in his castle courtyard, facing the gate out to the forest. (To skip the title while testing, open `scenes/forest.tscn` and use **Run Current Scene** in the editor, the clapperboard button at the top right.)
 
 ## Controls
 
@@ -37,7 +37,7 @@ The full design is in `Knight of the Still Woods — PRD.md`.
 | Crafting menu (breaks only) | C | Craft button (appears during breaks) |
 | Shift-lock: the knight turns with the camera | Left Shift | Lock icon, under the camera icon |
 | Switch view (over the shoulder / inside the helmet) | V | Camera icon, top right |
-| Free the mouse (also turns shift-lock off, closes the crafting menu) | Esc | — |
+| Pause menu: resume, graphics, main menu (also closes the crafting or furnace menu) | Esc | Pause icon, left of the camera icon |
 
 Touch controls appear automatically on touch screens and stay hidden on PC.
 If a PC has a touch screen, the last thing you used wins: touching the screen shows them, and typing or clicking a mouse hides them.
@@ -58,6 +58,11 @@ If a PC has a touch screen, the last thing you used wins: touching the screen sh
 - **`scripts/castle.gd`** (the `Castle` node): the knight's castle, built from boxes in code (it shows in the editor too). See **The castle** below.
 - **`scripts/furnace_site.gd`**, **`scripts/furnace.gd`**, **`scripts/furnace_menu.gd`**: the furnace hologram in the courtyard, the built furnace, and the smelting panel.
 - **`scripts/victory.gd`** (the `Victory` node): the ending: slow motion, the camera pan to the castle, and the victory screen.
+- **`scenes/title.tscn`** + **`scripts/title.gd`**: the title screen (the main scene).
+- **`scenes/world_look.tscn`** + **`scripts/world_look.gd`**: the sky, sun, ground, fog and colour grade, shared by the game and the title screen.
+- **`shaders/toon.gdshader`**, **`shaders/grass.gdshader`**: the toon shader used on everything solid, and the grass.
+- **`scripts/art.gd`**: makes every material (toon shader + palette). **`scripts/fx.gd`**: particle effects. **`scripts/pool.gd`**: reuses knives, arrows and loot.
+- **`scripts/graphics.gd`** (autoload `Graphics`): Low / Medium / High. **`scripts/ui_style.gd`**: the shared UI look. **`scripts/pause_menu.gd`**, **`scripts/graphics_picker.gd`**, **`scripts/orientation_hint.gd`**, **`scripts/floating_leaves.gd`**: the pause menu, the graphics buttons, the "turn your phone" message, and the drifting leaves.
 - **`scripts/game_config.gd`**: **every number worth tuning, in one file**: health, damage, time ramp, breaks, army size, rescue count, soldier stats, loot drop rates, recipes, weapon stats and the hammer, blaster, dagger and armour values. Nodes' Inspector settings take their defaults from here.
 - **`scripts/army.gd`** (the `Army` node) + **`scenes/soldier.tscn`** + **`scripts/soldier.gd`**: the knight's army. See **The army** below.
 - **`scenes/arrow.tscn`** + **`scripts/arrow.gd`**: arrows shot by archers.
@@ -182,6 +187,64 @@ These work when running from the editor (debug builds only):
 | F9 | Let crafting and smelting open at any time (press again to turn off) |
 
 You can also start at a later wave: select the `WaveManager` node in `forest.tscn` and set **Start Wave**.
+
+## The look
+
+- **One toon shader** (`shaders/toon.gdshader`) on everything solid: 3 light bands (2 on Low), shadows tinted blue-green (never black), and a soft rim light on characters. Its settings (`TOON_*`) and the one shared **palette** (`PALETTE`) are in `game_config.gd`.
+- **World** (`scenes/world_look.tscn`): a soft teal sky gradient, matching distance fog, gentle sky ambient light, and a light colour grade (warm highlights, teal shadows).
+- **Forest**: leafy trees with 2 or 3 leaf clumps in different greens, stacked-cone pines, berry bushes, rocks, flowers, sandy paths, and about 9,000 grass blades. Grass and leaves sway in the wind, which follows world time. No grass in the castle, on the paths or in the clearing.
+- **Effects** (`scripts/fx.gd`): dust when running and landing, hit sparks and a white flash on enemies, frost on frozen enemies, an icy ring for the hammer slam, an ice burst when a frozen head shatters, the blaster's glowing trail and explosion, furnace sparks, and leaves drifting in the air. All are CPU particles, so they slow down with world time.
+- **UI**: dark wood panels, rounded corners and a gold accent everywhere, one font.
+
+## Graphics settings
+
+Pick **Low**, **Medium** or **High** from the pause menu (Esc, or the pause icon on touch) or the title screen's Settings. It applies straight away and is saved (`user://settings.cfg`). The first launch picks Low on phones and touch devices, High on PC. Each level's numbers are in `GRAPHICS_LEVELS` in `game_config.gd`.
+
+| | Low | Medium | High |
+| --- | --- | --- | --- |
+| Shadows | Off | Knight and bosses | Everything |
+| Render resolution | 60% | 80% | 100% |
+| View distance | 38 m | 55 m | 80 m |
+| Grass | Off | Half, gentle sway | Full |
+| Leaf sway | Off | On | On |
+| Toon shading | 2 bands, no rim | Full | Full |
+| Colour grade | Off (fog only) | On | On |
+| Particles | 35% | 65% | Full |
+| Floating leaves | None | 12 | 30 |
+| Defeated enemies' pieces kept | 3 | 8 | 20 |
+
+Debug builds show an FPS counter in the bottom-left corner.
+
+## Performance
+
+- **F-1 culling**: the forest is drawn in 24 m chunks, so chunks off screen aren't drawn and far ones are cut off at the view distance. The castle walls are occluders, so whatever is behind them isn't drawn. (Occlusion culling only works on PC; the web build relies on chunking and view distance instead.)
+- **F-2 level of detail**: dummies, soldiers and mini bosses lose their small details (eyes, trims, straw) beyond 22 m. The knight and the big boss always keep full detail.
+- **F-3 fading**: trees, rocks, bushes, flowers and grass dissolve out near the view distance.
+- **F-4 far-away AI**: enemies more than 30 m away think every 4th physics frame (catching up on the time they skipped, so they still follow world time). Soldiers far away think less often and skip animation.
+- **Ragdoll pieces**: only the newest few defeated enemies' pieces stay on the ground (per graphics level); the oldest are cleared first.
+- **Pooling**: knives, arrows, loot and particle effects are reused instead of made and thrown away. Enemies aren't pooled: their cost is the ragdoll, which is rebuilt each time anyway; the ragdoll cap keeps that in check.
+
+## Releasing
+
+**Export everything** (with Godot 4.7.2 and its export templates installed):
+
+```bash
+tools/export_all.sh /path/to/Godot_v4.7.2-stable
+```
+
+This writes `builds/windows/`, `builds/linux/` and `builds/web/`, plus `KnightOfTheWoods-windows.zip`, `-linux.zip` and `-web.zip` in `builds/` (ignored by git).
+
+**Upload the web build to itch.io:**
+
+1. On itch.io, go to **Dashboard → Create new project**.
+2. Set **Kind of project** to **HTML**.
+3. Under **Uploads**, upload `builds/KnightOfTheWoods-web.zip` and tick **This file will be played in the browser**.
+4. Under **Embed options**, pick **Click to launch in fullscreen** (best on phones), or set a viewport size of 1280 × 720 and tick **Fullscreen button**.
+5. Leave **SharedArrayBuffer support** **unticked**: the web build is exported without threads, so it doesn't need it (and works in iPhone Safari).
+6. Tick **Mobile friendly** and set the orientation to **Landscape**.
+7. Save, open the page on the iPhone in Safari, and tap to start.
+
+**Share the PC build:** send `KnightOfTheWoods-windows.zip` (or `-linux.zip`). Players unzip it and double-click the game; no Godot needed. Windows may warn about an unknown publisher the first time: "More info → Run anyway".
 
 ## Physics layers
 

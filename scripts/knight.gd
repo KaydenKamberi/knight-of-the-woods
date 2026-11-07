@@ -40,6 +40,9 @@ signal died
 const KNIGHT_RENDER_LAYER := 2
 const KNIFE_SCENE := preload("res://scenes/throwing_knife.tscn")
 const Config := preload("res://scripts/game_config.gd")
+const Art := preload("res://scripts/art.gd")
+const Fx := preload("res://scripts/fx.gd")
+const Pool := preload("res://scripts/pool.gd")
 ## Physics layers the aim ray can hit: world (1), dummies (4) and debris (5).
 const AIM_MASK := 1 | 8 | 16
 ## Seconds the throwing arm takes to come down after a throw.
@@ -98,6 +101,10 @@ var _pickup_in_reach = null
 var _last_prompt := ""
 ## True while the crafting menu is open: the knight stands still and ignores input.
 var _menu_open := false
+# Dust puffs while running and on landing.
+var _was_on_floor := true
+var _fall_speed := 0.0
+var _dust_left := 0.0
 var _armor_shown := false
 
 ## The Weapons child node (knight_weapons.gd): hotbar, attacks and the hammer's specials.
@@ -116,6 +123,8 @@ var _armor_shown := false
 
 func _ready() -> void:
 	add_to_group("player")
+	# The knight always keeps his shadow unless shadows are off (Low).
+	Graphics.register_shadow_caster(self, true)
 	# Dummies go for whoever is nearest: the knight or one of his soldiers.
 	add_to_group("dummy_targets")
 	health = max_health
@@ -210,7 +219,9 @@ func _physics_process(delta: float) -> void:
 		velocity.y = 0.0
 	else:
 		velocity.y -= _gravity * delta
+	_fall_speed = -velocity.y
 	move_and_slide()
+	_kick_up_dust(delta)
 
 	if not _dead:
 		_update_facing(direction, delta)
@@ -219,6 +230,18 @@ func _physics_process(delta: float) -> void:
 
 func is_alive() -> bool:
 	return not _dead
+
+
+## Puffs of dust at the feet while running, and a bigger one when landing.
+func _kick_up_dust(delta: float) -> void:
+	var on_floor := is_on_floor()
+	if on_floor and not _was_on_floor and _fall_speed > 3.0:
+		Fx.dust(global_position, true)
+	_was_on_floor = on_floor
+	_dust_left -= delta
+	if on_floor and Vector2(velocity.x, velocity.z).length() > walk_speed * 0.7 and _dust_left <= 0.0:
+		_dust_left = 0.28
+		Fx.dust(global_position + Vector3.UP * 0.05)
 
 
 ## Called by dummies when their swing lands. `from` is where the hit came from,
@@ -271,7 +294,9 @@ func throw_knife() -> void:
 
 	var start := throw_start()
 	var direction := throw_direction(start)
-	var knife = KNIFE_SCENE.instantiate()
+	var knife = Pool.take("knife")
+	if knife == null:
+		knife = KNIFE_SCENE.instantiate()
 	get_parent().add_child(knife)
 	knife.launch(start, direction)
 	play_swing()
@@ -434,14 +459,12 @@ func _has_armor() -> bool:
 func _show_armor() -> void:
 	_armor_shown = true
 	var torso := $Model/Torso as MeshInstance3D
-	var steel := (torso.mesh as PrimitiveMesh).material as StandardMaterial3D
+	var steel := (torso.mesh as PrimitiveMesh).material
 	if steel != null:
-		steel.albedo_color = ICE_ARMOR_COLOR
-		steel.emission_enabled = true
-		steel.emission = ICE_ARMOR_COLOR * 0.25
+		Art.set_color(steel, ICE_ARMOR_COLOR)
+		Art.set_emission(steel, ICE_ARMOR_COLOR, 0.25)
 
 
-## Finds the nearest knife the knight could grab, and tells the HUD when that changes.
 ## Finds the nearest thing the knight could use with E: a knife (if he has room
 ## for one) or anything in the "interactables" group, like the furnace site. Tells
 ## the HUD whenever that, or its prompt (say, the stone count), changes.

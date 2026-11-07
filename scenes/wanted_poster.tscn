@@ -1,15 +1,17 @@
 [gd_scene format=3]
 
+[ext_resource type="Shader" path="res://shaders/toon.gdshader" id="toon_shader"]
+
 [ext_resource type="Script" path="res://scripts/wanted_poster.gd" id="1_poster"]
 [ext_resource type="PackedScene" path="res://scenes/knife_model.tscn" id="2_knife"]
 
-[sub_resource type="StandardMaterial3D" id="Mat_paper"]
-albedo_color = Color(0.86, 0.78, 0.6, 1)
-roughness = 1.0
+[sub_resource type="ShaderMaterial" id="Mat_paper"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.86, 0.78, 0.6, 1)
 
-[sub_resource type="StandardMaterial3D" id="Mat_portrait"]
-albedo_color = Color(0.32, 0.24, 0.16, 1)
-roughness = 1.0
+[sub_resource type="ShaderMaterial" id="Mat_portrait"]
+shader = ExtResource("toon_shader")
+shader_parameter/albedo = Color(0.32, 0.24, 0.16, 1)
 
 [sub_resource type="BoxMesh" id="Box_paper"]
 material = SubResource("Mat_paper")

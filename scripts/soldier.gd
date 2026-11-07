@@ -22,6 +22,9 @@ signal died(soldier: Node)
 
 const Config := preload("res://scripts/game_config.gd")
 const ARROW_SCENE := preload("res://scenes/arrow.tscn")
+const Pool := preload("res://scripts/pool.gd")
+const Art := preload("res://scripts/art.gd")
+const Fx := preload("res://scripts/fx.gd")
 ## How close a soldier with nothing to fight stays to the knight.
 const FOLLOW_DISTANCE := 4.0
 
@@ -53,7 +56,8 @@ var _left_leg: Node3D
 var _right_leg: Node3D
 var _left_arm: Node3D
 var _right_arm: Node3D
-var _materials: Array[StandardMaterial3D] = []
+## This soldier's own toon materials (one per colour), so it can flash white alone.
+var _materials := {}
 
 
 ## Call before adding the soldier to the scene.
@@ -73,6 +77,7 @@ func _ready() -> void:
 	health = Config.SOLDIER_HEALTH
 	_knight = get_tree().get_first_node_in_group("player")
 	_build_model()
+	Graphics.register_shadow_caster(self, false)
 	# Start the first decision at a random moment so a group doesn't think in lockstep.
 	_think_left = randf() * Config.SOLDIER_THINK_NEAR
 
@@ -230,7 +235,9 @@ func _shoot_arrow() -> void:
 	# Aim a little high so the arrow's drop carries it onto the target.
 	var flight_time := start.distance_to(aim) / Config.ARROW_SPEED
 	aim.y += 0.5 * 6.0 * flight_time * flight_time
-	var arrow = ARROW_SCENE.instantiate()
+	var arrow = Pool.take("arrow")
+	if arrow == null:
+		arrow = ARROW_SCENE.instantiate()
 	get_tree().current_scene.add_child(arrow)
 	arrow.launch(start, aim - start, _stats["damage"])
 
@@ -267,19 +274,10 @@ func _animate(delta: float) -> void:
 		_right_arm.rotation.x = lerpf(_right_arm.rotation.x, swing * 0.6, 8.0 * delta)
 
 
-## A quick red flash when hit.
+## A quick white flash and a few sparks when hit.
 func _flash() -> void:
-	for material in _materials:
-		material.emission_enabled = true
-		material.emission = Color(0.8, 0.1, 0.1)
-	var clear := create_tween()
-	clear.tween_interval(0.12)
-	clear.tween_callback(_clear_emission)
-
-
-func _clear_emission() -> void:
-	for material in _materials:
-		material.emission_enabled = false
+	Art.flash(_materials.values(), self)
+	Fx.hit_sparks(global_position + Vector3.UP * 1.1)
 
 
 # --- Building the model (low-poly boxes, facing -Z) --------------------------------
@@ -358,12 +356,14 @@ func _box(parent: Node3D, size: Vector3, color: Color, at: Vector3, tilt_z := 0.
 	var mesh := MeshInstance3D.new()
 	mesh.mesh = box
 	mesh.transform = Transform3D(Basis.from_euler(Vector3(tilt_x, 0.0, tilt_z)), at)
+	# F-2: thin trims and small pieces disappear far away, so distant soldiers are simpler.
+	if minf(size.x, minf(size.y, size.z)) < 0.05 or size.length() < 0.25:
+		mesh.visibility_range_end = Config.LOD_DETAIL_DISTANCE
 	parent.add_child(mesh)
 
 
-func _material(color: Color) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.roughness = 0.9
-	_materials.append(material)
-	return material
+func _material(color: Color) -> Material:
+	var key := color.to_html()
+	if not _materials.has(key):
+		_materials[key] = Art.material(color, {"rim": true, "unique": true})
+	return _materials[key]

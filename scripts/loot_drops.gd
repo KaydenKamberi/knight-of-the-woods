@@ -4,6 +4,7 @@ extends RefCounted
 
 const Config := preload("res://scripts/game_config.gd")
 const LOOT_SCRIPT := preload("res://scripts/loot.gd")
+const Pool := preload("res://scripts/pool.gd")
 
 
 static func drop_from(enemy: Node3D, is_mini_boss: bool) -> void:
@@ -22,7 +23,9 @@ static func drop_from(enemy: Node3D, is_mini_boss: bool) -> void:
 	var scene_root := enemy.get_tree().current_scene
 	var origin := enemy.global_position + Vector3.UP
 	for id in drops:
-		var loot = LOOT_SCRIPT.new()
+		var loot = Pool.take("loot")
+		if loot == null:
+			loot = LOOT_SCRIPT.new()
 		scene_root.add_child(loot)
 		# Pop out of the body in a random direction.
 		var angle := randf() * TAU

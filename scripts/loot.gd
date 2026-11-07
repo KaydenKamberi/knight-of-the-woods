@@ -4,6 +4,8 @@ extends Node3D
 ## him, and walking over it puts it in the inventory. All on world time.
 
 const Config := preload("res://scripts/game_config.gd")
+const Art := preload("res://scripts/art.gd")
+const Pool := preload("res://scripts/pool.gd")
 ## Loot closer than this (metres) drifts towards the knight.
 const MAGNET_RANGE := 2.5
 const MAGNET_SPEED := 6.0
@@ -24,6 +26,12 @@ func setup(id: String, start: Vector3, launch_velocity: Vector3) -> void:
 	material_id = id
 	global_position = start
 	_velocity = launch_velocity
+	_landed = false
+	_age = 0.0
+	set_physics_process(true)
+	# A reused piece of loot may have been something else last time.
+	if is_instance_valid(_model):
+		_model.free()
 	_model = Node3D.new()
 	add_child(_model)
 	_build_model()
@@ -51,7 +59,9 @@ func _physics_process(delta: float) -> void:
 		var inventory = get_tree().get_first_node_in_group("inventory")
 		if inventory != null:
 			inventory.add(material_id)
-		queue_free()
+		# Stop here and go back to the pool at the end of the frame.
+		set_physics_process(false)
+		_return_to_pool.call_deferred()
 	elif _landed and distance < MAGNET_RANGE:
 		global_position += to_knight.normalized() * minf(MAGNET_SPEED * delta, distance)
 
@@ -116,16 +126,17 @@ func _add_crystal(color: Color, height: float) -> void:
 
 func _add(mesh: PrimitiveMesh, color: Color, turn := Basis.IDENTITY, metallic := 0.0,
 		offset := Vector3.ZERO, glow := false) -> void:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.metallic = metallic
-	material.roughness = 0.6
+	# Shiny metals and glowing crystals catch the eye with a rim light or a glow.
+	var options := {"rim": metallic > 0.0 or glow}
 	if glow:
-		material.emission_enabled = true
-		material.emission = color
-		material.emission_energy_multiplier = 1.5
-	mesh.material = material
+		options["emission"] = color
+		options["energy"] = 1.5
+	mesh.material = Art.material(color, options)
 	var instance := MeshInstance3D.new()
 	instance.mesh = mesh
 	instance.transform = Transform3D(turn, offset)
 	_model.add_child(instance)
+
+
+func _return_to_pool() -> void:
+	Pool.give_back("loot", self)

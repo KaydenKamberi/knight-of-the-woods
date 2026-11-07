@@ -1,0 +1,35 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/title.gd" id="1_title"]
+[ext_resource type="PackedScene" path="res://scenes/world_look.tscn" id="2_look"]
+[ext_resource type="Script" path="res://scripts/forest.gd" id="3_forest"]
+[ext_resource type="Script" path="res://scripts/castle.gd" id="4_castle"]
+[ext_resource type="Script" path="res://scripts/floating_leaves.gd" id="5_leaves"]
+[ext_resource type="Script" path="res://scripts/orientation_hint.gd" id="6_hint"]
+[ext_resource type="PackedScene" path="res://scenes/swinging_log.tscn" id="7_log"]
+
+[node name="Title" type="Node3D"]
+script = ExtResource("1_title")
+
+[node name="WorldLook" parent="." instance=ExtResource("2_look")]
+
+[node name="Trees" type="Node3D" parent="."]
+script = ExtResource("3_forest")
+
+[node name="Castle" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 22)
+script = ExtResource("4_castle")
+
+[node name="SwingingLog" parent="." instance=ExtResource("7_log")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -5)
+
+[node name="FloatingLeaves" type="Node3D" parent="."]
+script = ExtResource("5_leaves")
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.96, 0.28, 0, -0.28, 0.96, 0, 7, -11)
+current = true
+fov = 60.0
+
+[node name="OrientationHint" type="CanvasLayer" parent="."]
+script = ExtResource("6_hint")

@@ -3,6 +3,7 @@ extends RefCounted
 ## Each is built from boxes, pointing along -Z from the grip at the origin.
 
 const KNIFE_MODEL := preload("res://scenes/knife_model.tscn")
+const Art := preload("res://scripts/art.gd")
 const WOOD := Color(0.45, 0.3, 0.17)
 const STEEL := Color(0.75, 0.77, 0.82)
 const DARK := Color(0.25, 0.25, 0.28)
@@ -69,16 +70,13 @@ static func _box(parent: Node3D, size: Vector3, color: Color, at: Vector3, shiny
 	return mesh
 
 
-static func _material(color: Color, shiny: bool, glow: bool) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.metallic = 0.6 if shiny else 0.0
-	material.roughness = 0.4 if shiny else 0.9
+## Toon materials: shiny parts get a little rim light, glowing ones (Cryo, Ultra) glow.
+static func _material(color: Color, shiny: bool, glow: bool) -> Material:
+	var options := {"rim": shiny}
 	if glow:
-		material.emission_enabled = true
-		material.emission = color
-		material.emission_energy_multiplier = 1.2
-	return material
+		options["emission"] = color
+		options["energy"] = 1.2
+	return Art.material(color, options)
 
 
 static func _set_layer(node: Node, layer: int) -> void:

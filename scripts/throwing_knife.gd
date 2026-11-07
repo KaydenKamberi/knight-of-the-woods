@@ -15,6 +15,7 @@ const HIT_MASK := 1 | 8 | 16
 ## Distance from the guard to the tip of the blade, in metres.
 const BLADE_LENGTH := 0.25
 const Config := preload("res://scripts/game_config.gd")
+const Pool := preload("res://scripts/pool.gd")
 
 @export var speed := 26.0
 ## How fast the knife drops while flying, in metres per second per second.
@@ -39,6 +40,8 @@ var _flight_time := 0.0
 
 ## Starts the knife flying from `from` in `direction`. Call after adding it to the scene.
 func launch(from: Vector3, direction: Vector3) -> void:
+	_flight_time = 0.0
+	remove_from_group("knife_pickups")
 	global_position = from
 	velocity = direction.normalized() * speed
 	_face(velocity)
@@ -50,7 +53,8 @@ func _physics_process(delta: float) -> void:
 		return
 	_flight_time += delta
 	if _flight_time > max_flight_time:
-		queue_free()
+		_flying = false
+		_recycle.call_deferred()
 		return
 
 	velocity.y -= drop * delta
@@ -91,7 +95,14 @@ func pickup_prompt() -> String:
 
 
 func pick_up() -> void:
-	queue_free()
+	_recycle()
+
+
+## Back to the pool, to be thrown again later.
+func _recycle() -> void:
+	remove_from_group("knife_pickups")
+	_spinner.rotation = Vector3.ZERO
+	Pool.give_back("knife", self)
 
 
 # -----------------------------------------------------------------------------
