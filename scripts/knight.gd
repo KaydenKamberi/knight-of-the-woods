@@ -28,8 +28,9 @@ signal view_changed(first_person: bool)
 signal shift_lock_changed(enabled: bool)
 signal health_changed(health: int, max_health: int)
 signal knives_changed(count: int, max_count: int)
-## Sent when a knife comes into or goes out of reach. prompt is "" when there's nothing to grab.
-signal pickup_changed(prompt: String)
+## Sent when what's in reach changes: a knife to grab, or the furnace to build or
+## use. prompt is "" when there's nothing; button is the word for the touch Grab button.
+signal pickup_changed(prompt: String, button: String)
 ## Sent once the knight has fallen over at zero health.
 signal died
 
@@ -94,6 +95,7 @@ var _dead := false
 var _throw_animation_left := 0.0
 ## The poster or knife currently in reach (untyped: it can be either script).
 var _pickup_in_reach = null
+var _last_prompt := ""
 ## True while the crafting menu is open: the knight stands still and ignores input.
 var _menu_open := false
 var _armor_shown := false
@@ -145,7 +147,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("shift_lock"):
 		set_shift_lock(not shift_lock)
 	elif event.is_action_pressed("interact"):
-		pick_up_knife()
+		use_in_reach()
 	elif event.is_action_pressed("pause"):
 		# Esc frees the mouse and turns shift-lock off. The pause menu comes in a later milestone.
 		set_shift_lock(false)
@@ -310,17 +312,42 @@ func play_spin() -> void:
 
 
 ## Grabs the knife in reach, from a poster or wherever a thrown one stuck (W-2, W-4).
-func pick_up_knife() -> void:
-	if _dead or knives >= max_knives or not is_instance_valid(_pickup_in_reach):
+## E / Grab: pulls a knife, picks one up, or builds or uses the furnace (W-2, W-4, R-14).
+func use_in_reach() -> void:
+	if _dead or not is_instance_valid(_pickup_in_reach):
 		return
-	if not _pickup_in_reach.can_be_picked_up():
+	var target = _pickup_in_reach
+	if target.is_in_group("interactables"):
+		target.interact()
 		return
-	_pickup_in_reach.pick_up()
+	if knives >= max_knives or not target.can_be_picked_up():
+		return
+	target.pick_up()
 	# A picked-up thrown knife is deleted, so forget it now. The next frame finds whatever else is in reach.
-	_pickup_in_reach = null
-	pickup_changed.emit("")
+	_clear_prompt()
 	_set_knives(knives + 1)
 	WorldTime.bump()
+
+
+## Pushed away by a big blow, like the big boss's stomp.
+func apply_knockback(push: Vector3) -> void:
+	if _dead:
+		return
+	velocity.x += push.x
+	velocity.z += push.z
+	velocity.y = maxf(velocity.y, 4.0)
+
+
+## The knight's camera (the victory pan starts from here).
+func camera() -> Camera3D:
+	return _camera
+
+
+## Freezes the knight for the victory cut-scene: back to third person, no input.
+func start_cutscene() -> void:
+	_menu_open = true
+	_set_helmet_view(false)
+	velocity = Vector3.ZERO
 
 
 ## Turns the camera. x is left/right, y is up/down, both in radians.
@@ -386,7 +413,7 @@ func _shoulder_position() -> Vector3:
 func _announce_status() -> void:
 	health_changed.emit(health, max_health)
 	knives_changed.emit(knives, max_knives)
-	pickup_changed.emit("")
+	_clear_prompt()
 
 
 func _set_knives(count: int) -> void:
@@ -415,22 +442,40 @@ func _show_armor() -> void:
 
 
 ## Finds the nearest knife the knight could grab, and tells the HUD when that changes.
+## Finds the nearest thing the knight could use with E: a knife (if he has room
+## for one) or anything in the "interactables" group, like the furnace site. Tells
+## the HUD whenever that, or its prompt (say, the stone count), changes.
 func _update_pickup_in_reach() -> void:
 	var nearest = null
+	var nearest_distance := INF
+	var hands := global_position + Vector3.UP
+	var candidates: Array = get_tree().get_nodes_in_group("interactables")
 	if knives < max_knives:
-		var nearest_distance := pickup_range
-		var hands := global_position + Vector3.UP
-		var pickups: Array = get_tree().get_nodes_in_group("knife_pickups")
-		for pickup in pickups:
-			if not pickup.can_be_picked_up():
-				continue
-			var distance: float = hands.distance_to(pickup.pickup_point())
-			if distance < nearest_distance:
-				nearest = pickup
-				nearest_distance = distance
-	if nearest != _pickup_in_reach:
+		candidates.append_array(get_tree().get_nodes_in_group("knife_pickups"))
+	for candidate in candidates:
+		if not candidate.can_be_picked_up():
+			continue
+		var reach: float = candidate.pickup_range() if candidate.has_method("pickup_range") else pickup_range
+		var distance: float = hands.distance_to(candidate.pickup_point())
+		if distance <= reach and distance < nearest_distance:
+			nearest = candidate
+			nearest_distance = distance
+	var prompt := ""
+	var button := "GRAB"
+	if nearest != null:
+		prompt = nearest.pickup_prompt()
+		if nearest.has_method("pickup_button"):
+			button = nearest.pickup_button()
+	if nearest != _pickup_in_reach or prompt != _last_prompt:
 		_pickup_in_reach = nearest
-		pickup_changed.emit("" if nearest == null else nearest.pickup_prompt())
+		_last_prompt = prompt
+		pickup_changed.emit(prompt, button)
+
+
+func _clear_prompt() -> void:
+	_pickup_in_reach = null
+	_last_prompt = ""
+	pickup_changed.emit("", "GRAB")
 
 
 ## The point in the world under the crosshair (the middle of the screen).
@@ -456,7 +501,7 @@ func throw_start() -> Vector3:
 func _die() -> void:
 	_dead = true
 	_pickup_in_reach = null
-	pickup_changed.emit("")
+	_clear_prompt()
 	if first_person:
 		toggle_view()  # Back to third person so the player sees the knight fall.
 	var fall := create_tween().set_ignore_time_scale(true)

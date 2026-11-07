@@ -24,7 +24,10 @@ const Config := preload("res://scripts/game_config.gd")
 
 
 ## Everything about one wave's mini boss: name, colour, headgear and stats.
+## Wave 20's "mini boss" is the big boss, so its wanted posters show him.
 static func info(wave: int) -> Dictionary:
+	if wave >= Config.LAST_WAVE:
+		return big_boss_info()
 	var index := clampi(wave, 1, NAMES.size()) - 1
 	return {
 		"wave": wave,
@@ -38,6 +41,20 @@ static func info(wave: int) -> Dictionary:
 		# E-4: dummies hit for 10; mini bosses for 15 plus 1 per wave.
 		"damage": Config.MINI_BOSS_BASE_DAMAGE + Config.MINI_BOSS_DAMAGE_PER_WAVE * wave,
 		"walk_speed": 2.0 + 0.03 * wave,
+	}
+
+
+## The big boss of wave 20 (V-4, V-8): a towering straw effigy with a crown.
+static func big_boss_info() -> Dictionary:
+	return {
+		"wave": Config.LAST_WAVE,
+		"name": Config.BIG_BOSS_NAME,
+		"color": Config.BIG_BOSS_COLOR,
+		"headgear": "crown",
+		"health": Config.BIG_BOSS_HEALTH,
+		"size": Config.BIG_BOSS_SIZE,
+		"damage": Config.BIG_BOSS_DAMAGE,
+		"walk_speed": Config.BIG_BOSS_SPEED,
 	}
 
 

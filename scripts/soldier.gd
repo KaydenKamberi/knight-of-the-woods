@@ -12,6 +12,10 @@ extends CharacterBody3D
 ## run (the Army node removes it from the roster). Far from the knight, a soldier
 ## thinks less often and skips its walk animation, to save work (F-4).
 ## Everything runs on world time.
+##
+## An idle soldier (M6) just stands in the castle courtyard between waves: it
+## isn't a target, doesn't think, and costs almost nothing. A cheering soldier
+## hops and waves its arms for the victory screen.
 
 ## Sent when the soldier falls. The Army node removes it from the roster.
 signal died(soldier: Node)
@@ -26,6 +30,8 @@ var role := "sword"
 ## This soldier's entry in the army roster.
 var record := {}
 var health := 0
+## Set before adding to the scene: stand still in the courtyard instead of fighting.
+var idle := false
 
 var _stats := {}
 var _target = null
@@ -36,6 +42,9 @@ var _windup_left := -1.0
 var _far := false
 var _dead := false
 var _leaving := false
+var _cheering := false
+var _cheer_time := 0.0
+var _knockback := Vector3.ZERO
 var _walk_cycle := 0.0
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
@@ -54,9 +63,13 @@ func setup(soldier_role: String, roster_record: Dictionary) -> void:
 
 
 func _ready() -> void:
-	add_to_group("soldiers")
-	add_to_group("dummy_targets")
 	_stats = Config.SOLDIER_STATS[role]
+	if idle:
+		add_to_group("idle_soldiers")
+		set_physics_process(false)
+	else:
+		add_to_group("soldiers")
+		add_to_group("dummy_targets")
 	health = Config.SOLDIER_HEALTH
 	_knight = get_tree().get_first_node_in_group("player")
 	_build_model()
@@ -65,7 +78,28 @@ func _ready() -> void:
 
 
 func is_alive() -> bool:
-	return not _dead and not _leaving
+	return not _dead and not _leaving and not idle
+
+
+## Faces the soldier along `direction` (used to line idle soldiers up).
+func face(direction: Vector3) -> void:
+	_face(direction)
+
+
+## Pushed away by a big blow, like the big boss's stomp.
+func apply_knockback(push: Vector3) -> void:
+	_knockback = Vector3(push.x, 0.0, push.z)
+
+
+## Stops fighting, stands at `spot` facing -Z (towards the victory camera) and cheers.
+func cheer_at(spot: Vector3) -> void:
+	_cheering = true
+	_windup_left = -1.0
+	remove_from_group("dummy_targets")
+	global_position = spot
+	velocity = Vector3.ZERO
+	_model.rotation = Vector3.ZERO
+	set_physics_process(true)
 
 
 ## Called by dummies when their swing lands.
@@ -91,6 +125,14 @@ func return_to_army() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if _cheering:
+		# Hop and wave both arms in the air.
+		_cheer_time += delta
+		var hop := absf(sin(_cheer_time * 7.0 + record.get("id", 0)))
+		_model.position.y = hop * 0.3
+		_left_arm.rotation.x = 2.7 + sin(_cheer_time * 9.0) * 0.3
+		_right_arm.rotation.x = 2.7 - sin(_cheer_time * 9.0) * 0.3
+		return
 	if _dead or _leaving:
 		return
 	_think_left -= delta
@@ -130,8 +172,9 @@ func _physics_process(delta: float) -> void:
 			desired = to_knight.normalized()
 			_face(desired)
 
-	velocity.x = desired.x * Config.SOLDIER_SPEED
-	velocity.z = desired.z * Config.SOLDIER_SPEED
+	velocity.x = desired.x * Config.SOLDIER_SPEED + _knockback.x
+	velocity.z = desired.z * Config.SOLDIER_SPEED + _knockback.z
+	_knockback = _knockback.move_toward(Vector3.ZERO, 25.0 * delta)
 	if is_on_floor():
 		velocity.y = 0.0
 	else:

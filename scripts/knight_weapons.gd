@@ -140,7 +140,7 @@ func slam() -> void:
 	Effects.burst(center, Config.HAMMER_SLAM_RADIUS, ICE, get_tree().current_scene)
 	for enemy in _enemies_within(center, Config.HAMMER_SLAM_RADIUS):
 		# Weakened regular dummies shatter outright; everyone else takes the hit and freezes.
-		if not enemy.is_mini_boss and enemy.health_fraction() < Config.HAMMER_SLAM_SHATTER_BELOW:
+		if not enemy.is_boss() and enemy.health_fraction() < Config.HAMMER_SLAM_SHATTER_BELOW:
 			enemy.shatter(center)
 			continue
 		enemy.take_hit(Config.HAMMER_SLAM_DAMAGE, center, 6.0)

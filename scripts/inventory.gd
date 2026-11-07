@@ -7,7 +7,7 @@ extends Node
 ##   always slot 1 and aren't listed here).
 ## - blaster_shots: Ultra blaster shots left. The blaster leaves the hotbar at 0.
 ## - has_armor: whether Cryo armour is on.
-## - furnace_built: whether the furnace exists, which unlocks smelting.
+## - furnace_built: whether the furnace in the courtyard exists, which unlocks smelting.
 ##
 ## Recipes and costs come from game_config.gd. Other scripts find this node
 ## through the "inventory" group.
@@ -17,7 +17,6 @@ signal changed
 signal item_added(material: String, amount: int)
 
 const Config := preload("res://scripts/game_config.gd")
-const FURNACE_SCRIPT := preload("res://scripts/furnace.gd")
 
 var materials := {}
 var weapons: Array[String] = []
@@ -78,15 +77,13 @@ func craft(item: String) -> bool:
 	return true
 
 
+## Spends the furnace's stone (R-14). The furnace site in the courtyard then
+## swaps its hologram for the real furnace.
 func build_furnace() -> bool:
 	if furnace_built or not can_afford(Config.FURNACE_COST):
 		return false
 	_spend(Config.FURNACE_COST)
 	furnace_built = true
-	var furnace = FURNACE_SCRIPT.new()
-	furnace.name = "Furnace"
-	furnace.position = Config.FURNACE_SPOT
-	get_tree().current_scene.add_child(furnace)
 	changed.emit()
 	return true
 

@@ -3,8 +3,8 @@ extends Control
 ## Craft button on touch, but only during breaks after waves 1 to 14.
 ##
 ## One row per recipe from game_config.gd with its cost and a Craft button,
-## then the furnace (built once) and smelting (1 raw iron + 1 coal = 1 iron)
-## once the furnace exists. Rows update whenever the inventory changes.
+## Rows update whenever the inventory changes. (The furnace and smelting live
+## at the furnace in the castle courtyard, not here.)
 ##
 ## The menu fills the screen (re-filling it if the window is resized). The
 ## panel sits in a CenterContainer, so it's always in the middle, at PANEL_SIZE
@@ -34,10 +34,6 @@ var _inventory = null
 var _panel: PanelContainer
 var _materials_label: Label
 var _rows := {}
-var _furnace_button: Button
-var _smelt_row: Control
-var _smelt_one: Button
-var _smelt_all: Button
 
 
 func _ready() -> void:
@@ -90,11 +86,6 @@ func refresh() -> void:
 		else:
 			button.text = "Craft"
 			button.disabled = not _inventory.can_craft(item)
-	_furnace_button.disabled = _inventory.furnace_built or not _inventory.can_afford(Config.FURNACE_COST)
-	_furnace_button.text = "Built" if _inventory.furnace_built else "Build"
-	_smelt_row.visible = _inventory.furnace_built
-	_smelt_one.disabled = not _inventory.can_afford(Config.SMELT_COST)
-	_smelt_all.disabled = _smelt_one.disabled
 
 
 func _connect_inventory() -> void:
@@ -148,23 +139,6 @@ func _build() -> void:
 		var button := _row(rows, title, DESCRIPTIONS[item], Inventory.describe_cost(Config.RECIPES[item]))
 		button.pressed.connect(func() -> void: _inventory.craft(item))
 		_rows[item] = button
-
-	_furnace_button = _row(rows, "Furnace", "Built once, in the clearing. Unlocks smelting.",
-			Inventory.describe_cost(Config.FURNACE_COST))
-	_furnace_button.pressed.connect(func() -> void: _inventory.build_furnace())
-
-	_smelt_row = HBoxContainer.new()
-	rows.add_child(_smelt_row)
-	var smelt_label := _label("Smelt: %s makes 1 iron" % Inventory.describe_cost(Config.SMELT_COST), 18, Color.WHITE)
-	smelt_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_wrap(smelt_label)
-	_smelt_row.add_child(smelt_label)
-	_smelt_one = _button("Smelt 1")
-	_smelt_one.pressed.connect(func() -> void: _inventory.smelt(1))
-	_smelt_row.add_child(_smelt_one)
-	_smelt_all = _button("Smelt all")
-	_smelt_all.pressed.connect(func() -> void: _inventory.smelt(999))
-	_smelt_row.add_child(_smelt_all)
 
 	var close := _button("Close (C)")
 	close.size_flags_horizontal = Control.SIZE_SHRINK_CENTER

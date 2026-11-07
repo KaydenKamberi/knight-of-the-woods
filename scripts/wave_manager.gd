@@ -1,16 +1,24 @@
 extends Node
-## Runs waves 1 to 19 (PRD V-1, V-2, V-3, V-6, V-7, R-3, R-4, W-5).
+## Runs all 20 waves (PRD V-1 to V-7, R-3, R-4, W-5).
 ##
-## Wave n sends 2 × n dummies in from spawn points around the forest edge
-## (V-1). When they're all down, that wave's mini boss appears (V-2). Beating
-## it ends the wave. After waves 1 to 14 there's a break to collect knives:
-## 30 seconds after wave 1, growing to 60 seconds after wave 14 (R-3). From
-## wave 15 on, waves run back to back (R-4). After the wave 19 mini boss, the
-## final battle placeholder appears. Waves, spawns and breaks run on world time.
+## Waves 1 to 19: wave n sends 2 × n dummies in from spawn points out in the
+## forest, far from the castle (V-1). When they're all down, that wave's mini
+## boss appears (V-2). Beating it ends the wave. After waves 1 to 14 there's a
+## break to collect knives and craft: 30 seconds after wave 1, growing to 60
+## seconds after wave 14 (R-3). From wave 15 on, waves run back to back (R-4).
 ##
-## For testing: set Start Wave in the Inspector to begin at a later wave. In
-## debug builds (running from the editor), F2 skips to the next wave and F3
-## ends a break or clears the current dummies so the mini boss comes out.
+## Wave 20, the final battle (V-4): 40 dummies, 10 of the earlier mini bosses
+## (picked at random, each with the health it had in its own wave) and the big
+## boss. They come in FINAL_WAVE_GROUPS groups so nothing lags; the big boss
+## comes with the last. When every one of them is down, the game is won (V-5).
+##
+## Crafting and smelting are open before wave 1 and during breaks, but never
+## from wave 15 on. Waves, spawns and breaks run on world time.
+##
+## For testing: set Start Wave in the Inspector. In debug builds (running from
+## the editor), F2 skips to the next wave and F3 ends a break, brings the mini
+## boss out, or (in wave 20) sends the next group. The DebugKeys node's F6
+## jumps straight to wave 20.
 
 signal wave_started(wave: int, last_wave: int)
 signal dummies_left_changed(count: int)
@@ -19,19 +27,22 @@ signal break_time_changed(seconds_left: float, next_wave: int)
 signal mini_boss_appeared(boss_name: String)
 signal mini_boss_health_changed(health: int, max_health: int)
 signal wave_cleared(wave: int)
+## Sent when every enemy of wave 20 is down: the game is won.
 signal all_waves_cleared
-## Crafting is open during breaks after waves 1 to 14 (R-3, R-5).
+## Crafting and smelting are open before wave 1 and during breaks up to wave 14 (R-3, R-5).
 signal crafting_available_changed(available: bool)
+signal big_boss_appeared(boss_name: String)
+signal big_boss_health_changed(health: int, max_health: int)
 
-enum Phase { BREAK, DUMMIES, MINI_BOSS_COMING, MINI_BOSS, DONE }
+enum Phase { BREAK, DUMMIES, MINI_BOSS_COMING, MINI_BOSS, FINAL_BATTLE, DONE }
 
 const DUMMY_SCENE := preload("res://scenes/dummy.tscn")
 const MiniBosses := preload("res://scripts/mini_bosses.gd")
 const Config := preload("res://scripts/game_config.gd")
 
 ## The first wave to play. Set it higher to test later waves.
-@export_range(1, 19) var start_wave := 1
-@export var last_wave := 19
+@export_range(1, 20) var start_wave := 1
+@export var last_wave := Config.LAST_WAVE
 ## Wave n has this many dummies times n (V-1).
 @export var dummies_per_wave := Config.DUMMIES_PER_WAVE
 
@@ -72,6 +83,17 @@ var _boss_delay_left := 0.0
 var _spawn_points: Array[Vector3] = []
 var _rng := RandomNumberGenerator.new()
 var _crafting_was_available := false
+# Wave 20: the groups still to come (each a list of "dummy", "big" or a mini boss's wave
+# number), what's queued to walk in now, how many are left, and how long since the last group.
+var _final_groups: Array = []
+var _final_queue: Array = []
+var _final_left := 0
+var _final_alive := 0
+var _group_wait := 0.0
+# For the victory screen.
+var _time_played := 0.0
+var _enemies_defeated := 0
+var _mini_bosses_defeated := 0
 
 ## Holds every dummy and mini boss, alive or in pieces.
 @onready var _enemies: Node3D = $Enemies
@@ -82,13 +104,17 @@ func _ready() -> void:
 	_rng.randomize()
 	for i in spawn_point_count:
 		var angle := TAU * i / spawn_point_count
-		_spawn_points.append(Vector3(cos(angle), 0.0, sin(angle)) * spawn_radius)
+		var point := Vector3(cos(angle), 0.0, sin(angle)) * spawn_radius
+		# Enemies come from the forest, never from in or around the castle.
+		if point.distance_to(Config.CASTLE_CENTER) >= Config.CASTLE_SPAWN_KEEP_OUT:
+			_spawn_points.append(point)
 	wave = clampi(start_wave, 1, last_wave) - 1
 	# Wait a frame so the posters and the HUD exist before we talk to them.
 	_start_break.call_deferred(first_break)
 
 
 func _process(delta: float) -> void:
+	_time_played += WorldTime.real_delta
 	match phase:
 		Phase.BREAK:
 			_break_left -= delta if breaks_use_world_time else WorldTime.real_delta
@@ -105,18 +131,34 @@ func _process(delta: float) -> void:
 			_boss_delay_left -= delta
 			if _boss_delay_left <= 0.0:
 				_spawn_mini_boss()
+		Phase.FINAL_BATTLE:
+			_run_final_battle(delta)
 	var crafting := can_craft()
 	if crafting != _crafting_was_available:
 		_crafting_was_available = crafting
 		crafting_available_changed.emit(crafting)
 
 
-## True during a crafting break: a break after waves 1 to 14. (The countdown
-## before the very first wave isn't a crafting break.)
+## True when crafting and smelting are open: before wave 1 and during breaks,
+## but not during a wave and never from wave 15 on.
 func can_craft() -> bool:
 	if debug_crafting_anytime:
 		return true
-	return phase == Phase.BREAK and wave >= 1 and wave <= last_break_wave
+	return phase == Phase.BREAK and wave <= last_break_wave
+
+
+## Why crafting and smelting are closed right now ("" if they're open).
+func workshop_closed_reason() -> String:
+	if can_craft():
+		return ""
+	if wave > last_break_wave:
+		return "No smelting from wave %d on" % (last_break_wave + 1)
+	return "You can only smelt during breaks"
+
+
+## Numbers for the victory screen.
+func stats() -> Dictionary:
+	return {"time": _time_played, "enemies": _enemies_defeated, "mini_bosses": _mini_bosses_defeated}
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -145,6 +187,9 @@ func _start_break(seconds: float) -> void:
 
 
 func _start_wave(number: int) -> void:
+	if number >= last_wave:
+		_start_final_battle()
+		return
 	wave = number
 	phase = Phase.DUMMIES
 	_to_spawn = dummies_per_wave * wave
@@ -165,6 +210,7 @@ func _spawn_dummy() -> void:
 
 
 func _on_dummy_defeated() -> void:
+	_enemies_defeated += 1
 	_dummies_left -= 1
 	dummies_left_changed.emit(_dummies_left)
 	if _dummies_left <= 0 and phase == Phase.DUMMIES:
@@ -190,13 +236,10 @@ func _on_mini_boss_health_changed(health: int, max_health: int) -> void:
 
 
 func _on_mini_boss_defeated() -> void:
+	_enemies_defeated += 1
+	_mini_bosses_defeated += 1
 	wave_cleared.emit(wave)
-	if wave >= last_wave:
-		phase = Phase.DONE
-		# A moment to watch the last mini boss fall apart.
-		get_tree().create_timer(2.5, false).timeout.connect(func() -> void: all_waves_cleared.emit())
-	else:
-		_start_break(break_after(wave))
+	_start_break(break_after(wave))
 
 
 ## How long the break after `finished_wave` lasts, in seconds (R-3, R-4).
@@ -206,6 +249,101 @@ func break_after(finished_wave: int) -> float:
 	var progress := float(finished_wave - 1) / maxf(last_break_wave - 1, 1)
 	return lerpf(shortest_break, longest_break, progress)
 
+
+# --- Wave 20, the final battle ---------------------------------------------------
+
+func _start_final_battle() -> void:
+	wave = last_wave
+	phase = Phase.FINAL_BATTLE
+	_final_groups = _plan_final_groups()
+	_final_queue.clear()
+	_final_left = 0
+	for group in _final_groups:
+		_final_left += group.size()
+	_final_alive = 0
+	_show_mini_boss_on_posters(wave)
+	break_time_changed.emit(-1.0, wave)
+	wave_started.emit(wave, last_wave)
+	dummies_left_changed.emit(_final_left)
+	_send_next_group()
+
+
+## Splits wave 20 into groups: the dummies evenly, the returning mini bosses
+## (weakest first) spread across the groups, and the big boss in the last group.
+func _plan_final_groups() -> Array:
+	var group_count := maxi(Config.FINAL_WAVE_GROUPS, 1)
+	var groups: Array = []
+	for i in group_count:
+		groups.append([])
+	var dummy_count := dummies_per_wave * last_wave
+	for i in dummy_count:
+		groups[i * group_count / dummy_count].append("dummy")
+	var waves: Array = range(1, last_wave)
+	waves.shuffle()
+	waves = waves.slice(0, mini(Config.FINAL_MINI_BOSS_COUNT, waves.size()))
+	waves.sort()
+	for i in waves.size():
+		groups[i * group_count / waves.size()].append(waves[i])
+	groups[group_count - 1].append("big")
+	return groups
+
+
+func _send_next_group() -> void:
+	if _final_groups.is_empty():
+		return
+	var group: Array = _final_groups.pop_front()
+	group.shuffle()
+	_final_queue.append_array(group)
+	_group_wait = 0.0
+	_spawn_timer = 0.0
+
+
+func _run_final_battle(delta: float) -> void:
+	if not _final_queue.is_empty():
+		_spawn_timer -= delta
+		if _spawn_timer <= 0.0:
+			_spawn_timer = spawn_interval
+			_spawn_final_enemy(_final_queue.pop_front())
+	elif not _final_groups.is_empty():
+		# The next group comes once this one is nearly beaten, or after a while anyway.
+		_group_wait += delta
+		if _final_alive <= Config.FINAL_NEXT_GROUP_WHEN_ALIVE or _group_wait >= Config.FINAL_GROUP_MAX_WAIT:
+			_send_next_group()
+
+
+func _spawn_final_enemy(kind) -> void:
+	var enemy = DUMMY_SCENE.instantiate()
+	if kind is String and kind == "big":
+		var info := MiniBosses.big_boss_info()
+		enemy.configure_big_boss(info)
+		enemy.health_changed.connect(_on_big_boss_health_changed)
+		big_boss_appeared.emit(info["name"])
+		big_boss_health_changed.emit(info["health"], info["health"])
+	elif kind is int:
+		enemy.configure_mini_boss(MiniBosses.info(kind))
+	enemy.position = _pick_spawn_point()
+	enemy.defeated.connect(_on_final_enemy_defeated.bind(enemy))
+	_enemies.add_child(enemy)
+	_final_alive += 1
+
+
+func _on_final_enemy_defeated(enemy) -> void:
+	_enemies_defeated += 1
+	if enemy.is_mini_boss and not enemy.is_big_boss:
+		_mini_bosses_defeated += 1
+	_final_alive -= 1
+	_final_left -= 1
+	dummies_left_changed.emit(_final_left)
+	if _final_left <= 0 and phase == Phase.FINAL_BATTLE:
+		phase = Phase.DONE
+		all_waves_cleared.emit()
+
+
+func _on_big_boss_health_changed(health: int, max_health: int) -> void:
+	big_boss_health_changed.emit(health, max_health)
+
+
+# ---------------------------------------------------------------------------------
 
 func _pick_spawn_point() -> Vector3:
 	var knight := get_tree().get_first_node_in_group("player") as Node3D
@@ -229,21 +367,38 @@ func _show_mini_boss_on_posters(for_wave: int) -> void:
 func _debug_skip_wave() -> void:
 	if phase == Phase.DONE:
 		return
-	for enemy in _enemies.get_children():
-		enemy.queue_free()
-	if phase != Phase.BREAK:
-		wave_cleared.emit(wave)
-	if wave >= last_wave:
+	if wave >= last_wave and phase == Phase.FINAL_BATTLE:
+		_clear_enemies()
 		phase = Phase.DONE
 		all_waves_cleared.emit()
-	else:
-		_start_wave(wave + 1)
+		return
+	debug_jump_to_wave(wave + 1)
 
 
-## F3: ends a break now, or removes this wave's dummies so the mini boss comes out.
+## Clears whatever is happening and starts wave `number` right away (F2, and F6 for wave 20).
+func debug_jump_to_wave(number: int) -> void:
+	if phase == Phase.DONE:
+		return
+	_clear_enemies()
+	if phase != Phase.BREAK:
+		wave_cleared.emit(wave)
+	_start_wave(clampi(number, 1, last_wave))
+
+
+func _clear_enemies() -> void:
+	for enemy in _enemies.get_children():
+		enemy.queue_free()
+	_final_groups.clear()
+	_final_queue.clear()
+
+
+## F3: ends a break now, removes this wave's dummies so the mini boss comes out,
+## or in wave 20 sends the next group straight away.
 func _debug_hurry_up() -> void:
 	if phase == Phase.BREAK:
 		_break_left = 0.0
+	elif phase == Phase.FINAL_BATTLE:
+		_send_next_group()
 	elif phase == Phase.DUMMIES:
 		var enemies: Array = _enemies.get_children()
 		for enemy in enemies:

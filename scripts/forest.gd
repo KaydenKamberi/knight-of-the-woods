@@ -4,6 +4,8 @@ extends Node3D
 ##
 ## Trees, rocks and bushes are scattered around an open clearing in the middle.
 ## A few trees around the clearing carry wanted posters with knives (W-1).
+## Nothing grows where the castle stands, or on the lane from its gate to the
+## clearing (the castle's size and spot come from game_config.gd).
 ## A thick ring of trees surrounds the play area, with an invisible wall inside
 ## it so the knight can't walk out. The same seed always makes the same forest.
 ##
@@ -30,6 +32,7 @@ const POSTER_HEIGHT := 1.4
 ## Physics layer value for the invisible edge wall (layer 3, "boundary").
 ## The knight bumps into it, but thrown knives fly through.
 const BOUNDARY_LAYER := 4
+const Config := preload("res://scripts/game_config.gd")
 
 @export var forest_seed := 7
 ## The open space in the middle where the knight starts.
@@ -219,6 +222,8 @@ func _scatter(count: int, min_radius: float, max_radius: float, keep_out: float)
 
 
 func _is_free(point: Vector2, keep_out: float) -> bool:
+	if _in_castle_grounds(point, keep_out):
+		return false
 	var cell := _cell_of(point)
 	var reach := ceili((keep_out + MAX_KEEP_OUT) / GRID_CELL)
 	for x in range(cell.x - reach, cell.x + reach + 1):
@@ -227,6 +232,17 @@ func _is_free(point: Vector2, keep_out: float) -> bool:
 				if point.distance_to(Vector2(other.x, other.y)) < keep_out + other.z:
 					return false
 	return true
+
+
+## True inside the castle's footprint (plus a margin) or on the lane from its gate to the clearing.
+func _in_castle_grounds(point: Vector2, keep_out: float) -> bool:
+	var center := Vector2(Config.CASTLE_CENTER.x, Config.CASTLE_CENTER.z)
+	var reach := Config.CASTLE_HALF_SIZE + Config.CASTLE_TOWER_SIZE * 0.5 + Config.CASTLE_TREE_MARGIN + keep_out
+	if absf(point.x - center.x) <= reach and absf(point.y - center.y) <= reach:
+		return true
+	# The lane: as wide as the gate plus a little, from the clearing to the castle.
+	var lane_half_width := Config.CASTLE_GATE_WIDTH * 0.5 + 1.0 + keep_out
+	return absf(point.x - center.x) <= lane_half_width and point.y > 0.0 and point.y < center.y
 
 
 func _mark_used(point: Vector2, keep_out: float) -> void:

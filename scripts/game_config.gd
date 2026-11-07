@@ -40,8 +40,28 @@ const MINI_BOSS_HEALTH_PER_WAVE := 100
 ## Mini boss hit: base + per_wave × wave. 16 in wave 1, 34 in wave 19 (E-4).
 const MINI_BOSS_BASE_DAMAGE := 15
 const MINI_BOSS_DAMAGE_PER_WAVE := 1
-## For the big boss in wave 20 (M6).
+# --- The big boss (wave 20, V-4, V-5, V-8) -----------------------------------------
+
+const BIG_BOSS_NAME := "The Grand Effigy"
+## 4,000 health: exactly 4 Ultra blaster hits.
+const BIG_BOSS_HEALTH := 4000
+## Heavy swing damage (E-4) and its wind-up in seconds (the warning before it lands).
 const BIG_BOSS_DAMAGE := 30
+const BIG_BOSS_SWING_WINDUP := 1.0
+## Size compared to a regular dummy (mini bosses are 1.45 to 1.9).
+const BIG_BOSS_SIZE := 2.8
+const BIG_BOSS_SPEED := 1.8
+const BIG_BOSS_COLOR := Color(0.32, 0.16, 0.12)
+## Ground stomp: everyone within the radius takes damage and is knocked back.
+## A red ring on the ground grows during the wind-up as a warning.
+const BIG_BOSS_STOMP_RADIUS := 6.0
+const BIG_BOSS_STOMP_DAMAGE := 20
+## Knockback speed in metres per second.
+const BIG_BOSS_STOMP_KNOCKBACK := 12.0
+const BIG_BOSS_STOMP_WINDUP := 1.2
+const BIG_BOSS_STOMP_COOLDOWN := 7.0
+## Cryo dagger on the big boss: a frozen head doesn't shatter; the next dagger hit does this much.
+const BIG_BOSS_HEAD_SHATTER_DAMAGE := 400
 
 # --- Waves and breaks (V-1, R-3, R-4) ------------------------------------------
 
@@ -52,6 +72,50 @@ const FIRST_BREAK := 10.0
 const SHORTEST_BREAK := 30.0
 const LONGEST_BREAK := 60.0
 const LAST_BREAK_WAVE := 14
+## The final wave (V-4): the big boss at the castle.
+const LAST_WAVE := 20
+
+# --- Wave 20, the final battle (V-4) -------------------------------------------------
+
+## How many earlier mini bosses come back (picked at random from waves 1 to 19).
+## Each keeps the health it had in its own wave.
+const FINAL_MINI_BOSS_COUNT := 10
+## The enemies arrive in this many groups, so nothing lags. The big boss comes with the last.
+const FINAL_WAVE_GROUPS := 4
+## The next group comes when this few enemies are left standing...
+const FINAL_NEXT_GROUP_WHEN_ALIVE := 6
+## ...or after this many seconds (world time), whichever comes first.
+const FINAL_GROUP_MAX_WAIT := 45.0
+
+# --- Winning (V-5) ---------------------------------------------------------------------
+
+## Slow motion as the last enemy falls: world speed and real seconds.
+const VICTORY_SLOW_SPEED := 0.15
+const VICTORY_SLOW_TIME := 1.5
+## Real seconds the camera takes to pan over to the castle.
+const VICTORY_PAN_TIME := 3.5
+
+# --- The castle (S-2) -------------------------------------------------------------------
+
+## The middle of the courtyard. The castle stands at the south edge of the forest,
+## with its gate facing the middle of the forest (towards -Z).
+const CASTLE_CENTER := Vector3(0.0, 0.0, 22.0)
+## Half the width of the square of walls (measured to the middle of the walls).
+const CASTLE_HALF_SIZE := 8.0
+const CASTLE_WALL_HEIGHT := 4.0
+const CASTLE_WALL_THICKNESS := 1.0
+const CASTLE_TOWER_SIZE := 3.0
+const CASTLE_TOWER_HEIGHT := 6.5
+## The gate is a full-height opening (no lintel), so even the big boss fits through.
+const CASTLE_GATE_WIDTH := 4.0
+## The stone posts either side of the gate stand a little taller than the walls.
+const CASTLE_GATE_POST_HEIGHT := 5.2
+## Trees, rocks and bushes keep this far outside the walls.
+const CASTLE_TREE_MARGIN := 3.0
+## Enemies never spawn closer than this to the middle of the courtyard.
+const CASTLE_SPAWN_KEEP_OUT := 17.0
+## Where the knight starts: in the courtyard, facing the gate.
+const KNIGHT_START := Vector3(0.0, 0.0, 24.0)
 
 # --- The army (A-1, A-2, A-6) ----------------------------------------------------
 
@@ -60,8 +124,14 @@ const ARMY_SIZE := 25
 ## How many soldiers run in when the knight drops to RESCUE_HEALTH_FRACTION of his health.
 const RESCUE_COUNT := 4
 const RESCUE_HEALTH_FRACTION := 0.5
-## How far from the knight rescuers appear, in metres.
+## How far from the knight rescuers appear, in metres, when he's far from the castle.
 const RESCUE_SPAWN_DISTANCE := 7.0
+## Rescuers run out of the castle gate if the knight is within this many metres of
+## it; farther away they appear near him, so they arrive in time.
+const RESCUE_FROM_GATE_RANGE := 20.0
+## How many idle soldiers stand in the courtyard between waves (all of them by
+## default; lower it if phones struggle).
+const IDLE_SOLDIERS_SHOWN := 25
 const SOLDIER_HEALTH := 60
 const SOLDIER_SPEED := 4.0
 ## Soldiers farther than this from the knight use simpler AI that thinks less often (F-4).
@@ -112,11 +182,13 @@ const RECIPES := {
 	"ultra_blaster": {"ultra": 1},
 	"cryo_armor": {"iron": 3, "stone": 3, "cryo": 2},
 }
-## The furnace is built once and unlocks smelting (R-14).
-const FURNACE_COST := {"stone": 15}
+## The furnace is built once, at its spot in the castle courtyard, and unlocks smelting (R-14).
+const FURNACE_COST := {"stone": 10}
 const SMELT_COST := {"raw_iron": 1, "coal": 1}
-## Where the furnace goes in the clearing.
-const FURNACE_SPOT := Vector3(4.5, 0.0, 2.5)
+## The furnace's spot, measured from the middle of the courtyard (the back-right corner).
+const FURNACE_OFFSET := Vector3(4.5, 0.0, 4.5)
+## How close the knight has to be to build or use it, in metres.
+const FURNACE_USE_RANGE := 3.0
 
 # --- Weapons (weapon stats table, R-6, R-8, R-12, R-15 to R-17) --------------------
 

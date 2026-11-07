@@ -1,46 +1,67 @@
 extends StaticBody3D
-## The furnace (PRD R-14). Built once from the crafting menu, it stands in the
-## clearing and unlocks smelting raw iron into iron. It's just for show and
-## for blocking: smelting itself happens in the crafting menu.
+## The built furnace in the castle courtyard (PRD R-14). It's built once, from
+## its hologram, and stays for the rest of the game. Smelting happens in the
+## furnace panel; each smelt calls flame_burst() so the fire flares up in its
+## mouth. Between smelts the fire just glows faintly.
 
+const Effects := preload("res://scripts/effects.gd")
+const STONE := Color(0.52, 0.5, 0.47)
+const DARK_STONE := Color(0.36, 0.34, 0.32)
+const FIRE := Color(1.0, 0.45, 0.1)
+## Where the fire's mouth is, on the furnace's front (-Z) side.
+const MOUTH := Vector3(0, 0.45, -0.61)
+const EMBER_GLOW := 0.3
+const EMBER_LIGHT := 0.15
 
 var _model: Node3D
+var _glow: StandardMaterial3D
+var _light: OmniLight3D
+
+
+## Builds the furnace's shape under `parent`. With `override`, every part uses
+## that material (the see-through hologram). Returns the fire's material.
+static func build_model(parent: Node3D, override: Material = null) -> StandardMaterial3D:
+	_box(parent, Vector3(1.4, 1.1, 1.2), Vector3(0, 0.55, 0), STONE, override)
+	_box(parent, Vector3(1.5, 0.15, 1.3), Vector3(0, 1.15, 0), DARK_STONE, override)
+	_box(parent, Vector3(1.0, 0.5, 0.9), Vector3(0, 1.45, 0), STONE, override)
+	_box(parent, Vector3(0.4, 1.0, 0.4), Vector3(0.3, 2.2, 0.2), DARK_STONE, override)
+	var glow := StandardMaterial3D.new()
+	glow.albedo_color = FIRE
+	glow.emission_enabled = true
+	glow.emission = FIRE
+	glow.emission_energy_multiplier = EMBER_GLOW
+	_box(parent, Vector3(0.6, 0.45, 0.05), MOUTH, FIRE, override if override != null else glow)
+	return glow
+
+
+static func _box(parent: Node3D, size: Vector3, at: Vector3, color: Color, material: Material) -> void:
+	var box := BoxMesh.new()
+	box.size = size
+	if material != null:
+		box.material = material
+	else:
+		var plain := StandardMaterial3D.new()
+		plain.albedo_color = color
+		plain.roughness = 1.0
+		box.material = plain
+	var mesh := MeshInstance3D.new()
+	mesh.mesh = box
+	mesh.position = at
+	parent.add_child(mesh)
 
 
 func _ready() -> void:
+	add_to_group("furnace")
 	_model = Node3D.new()
 	_model.name = "Model"
 	add_child(_model)
-	var stone := Color(0.52, 0.5, 0.47)
-	var dark_stone := Color(0.36, 0.34, 0.32)
-	_box(Vector3(1.4, 1.1, 1.2), stone, Vector3(0, 0.55, 0))
-	_box(Vector3(1.5, 0.15, 1.3), dark_stone, Vector3(0, 1.15, 0))
-	_box(Vector3(1.0, 0.5, 0.9), stone, Vector3(0, 1.45, 0))
-	_box(Vector3(0.4, 1.0, 0.4), dark_stone, Vector3(0.3, 2.2, 0.2))
-
-	# The glowing mouth of the fire, on the side facing the middle of the clearing.
-	var glow := StandardMaterial3D.new()
-	glow.albedo_color = Color(1.0, 0.45, 0.1)
-	glow.emission_enabled = true
-	glow.emission = Color(1.0, 0.4, 0.05)
-	glow.emission_energy_multiplier = 2.0
-	var mouth := BoxMesh.new()
-	mouth.size = Vector3(0.6, 0.45, 0.05)
-	mouth.material = glow
-	var mouth_mesh := MeshInstance3D.new()
-	mouth_mesh.mesh = mouth
-	mouth_mesh.position = Vector3(0, 0.45, -0.61)
-	_model.add_child(mouth_mesh)
-	var light := OmniLight3D.new()
-	light.light_color = Color(1.0, 0.55, 0.2)
-	light.light_energy = 1.2
-	light.omni_range = 4.0
-	light.position = Vector3(0, 0.6, -1.0)
-	_model.add_child(light)
-	# Face the mouth towards the middle of the clearing.
-	var to_middle := Vector3(-position.x, 0.0, -position.z)
-	if to_middle.length_squared() > 0.01:
-		rotation.y = atan2(-to_middle.x, -to_middle.z)
+	_glow = build_model(_model)
+	_light = OmniLight3D.new()
+	_light.light_color = Color(1.0, 0.55, 0.2)
+	_light.light_energy = EMBER_LIGHT
+	_light.omni_range = 4.0
+	_light.position = MOUTH + Vector3(0, 0.1, -0.4)
+	_model.add_child(_light)
 
 	var shape := BoxShape3D.new()
 	shape.size = Vector3(1.4, 1.7, 1.2)
@@ -49,20 +70,17 @@ func _ready() -> void:
 	collision.position = Vector3(0, 0.85, 0)
 	add_child(collision)
 
-	# Pop up out of the ground so it's easy to spot. (Only the model scales:
-	# physics bodies shouldn't be scaled.)
+	# Pop up with a puff of dust. (Only the model scales: physics bodies shouldn't be scaled.)
 	_model.scale = Vector3.ONE * 0.01
 	create_tween().tween_property(_model, "scale", Vector3.ONE, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	Effects.burst(global_position + Vector3.UP * 0.6, 2.2, Color(0.62, 0.57, 0.48), get_tree().current_scene)
 
 
-func _box(size: Vector3, color: Color, at: Vector3) -> void:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.roughness = 1.0
-	var box := BoxMesh.new()
-	box.size = size
-	box.material = material
-	var mesh := MeshInstance3D.new()
-	mesh.mesh = box
-	mesh.position = at
-	_model.add_child(mesh)
+## The fire flares up for a moment: called each time something is smelted.
+func flame_burst() -> void:
+	_glow.emission_energy_multiplier = 4.0
+	_light.light_energy = 2.5
+	var settle := create_tween().set_parallel()
+	settle.tween_property(_glow, "emission_energy_multiplier", EMBER_GLOW, 0.6)
+	settle.tween_property(_light, "light_energy", EMBER_LIGHT, 0.6)
+	Effects.burst(to_global(MOUTH + Vector3(0, 0, -0.2)), 0.7, FIRE, get_tree().current_scene)

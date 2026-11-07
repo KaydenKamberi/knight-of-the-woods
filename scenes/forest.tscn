@@ -8,6 +8,8 @@
 [ext_resource type="Script" path="res://scripts/army.gd" id="6_army"]
 [ext_resource type="Script" path="res://scripts/debug_keys.gd" id="7_debug"]
 [ext_resource type="Script" path="res://scripts/inventory.gd" id="8_inventory"]
+[ext_resource type="Script" path="res://scripts/castle.gd" id="9_castle"]
+[ext_resource type="Script" path="res://scripts/victory.gd" id="10_victory"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.36, 0.55, 0.78, 1)
@@ -68,7 +70,12 @@ script = ExtResource("1_forest")
 [node name="SwingingLog" parent="." instance=ExtResource("4_log")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -5)
 
+[node name="Castle" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 22)
+script = ExtResource("9_castle")
+
 [node name="Knight" parent="." instance=ExtResource("2_knight")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 24)
 
 [node name="WaveManager" type="Node" parent="."]
 script = ExtResource("5_waves")
@@ -80,6 +87,9 @@ script = ExtResource("6_army")
 
 [node name="Inventory" type="Node" parent="."]
 script = ExtResource("8_inventory")
+
+[node name="Victory" type="Node" parent="."]
+script = ExtResource("10_victory")
 
 [node name="DebugKeys" type="Node" parent="."]
 script = ExtResource("7_debug")
@@ -99,7 +109,10 @@ script = ExtResource("7_debug")
 [connection signal="mini_boss_appeared" from="WaveManager" to="HUD" method="on_mini_boss_appeared"]
 [connection signal="mini_boss_health_changed" from="WaveManager" to="HUD" method="on_mini_boss_health_changed"]
 [connection signal="wave_cleared" from="WaveManager" to="HUD" method="on_wave_cleared"]
-[connection signal="all_waves_cleared" from="WaveManager" to="HUD" method="show_final_battle_placeholder"]
+[connection signal="all_waves_cleared" from="WaveManager" to="Victory" method="start"]
+[connection signal="big_boss_appeared" from="WaveManager" to="HUD" method="on_big_boss_appeared"]
+[connection signal="big_boss_health_changed" from="WaveManager" to="HUD" method="on_big_boss_health_changed"]
+[connection signal="army_marched_out" from="Army" to="HUD" method="on_army_marched_out"]
 [connection signal="health_changed" from="Knight" to="Army" method="on_knight_health_changed"]
 [connection signal="wave_started" from="WaveManager" to="Army" method="on_wave_started"]
 [connection signal="wave_cleared" from="WaveManager" to="Army" method="on_wave_cleared"]

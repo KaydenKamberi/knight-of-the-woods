@@ -21,7 +21,7 @@ The full design is in `Knight of the Still Woods — PRD.md`.
 1. Download **Godot 4.7.x (standard)** from <https://godotengine.org/download>.
 2. Start Godot. In the Project Manager, click **Import**, pick this repo's `project.godot`, then click **Import & Edit**.
 3. The first time it opens, Godot imports the files and creates a `.godot/` cache folder (ignored by git).
-4. Press **F5** (or the ▶ Play button). The knight starts in a clearing in the middle of the forest.
+4. Press **F5** (or the ▶ Play button). The knight starts in his castle courtyard, facing the gate out to the forest.
 
 ## Controls
 
@@ -54,16 +54,19 @@ If a PC has a touch screen, the last thing you used wins: touching the screen sh
 - **`scenes/knife_model.tscn`**: the knife's low-poly model, shared by posters and thrown knives.
 - **`scenes/dummy.tscn`** + **`scripts/dummy.gd`**: a straw training dummy that walks at the knight and swings at him. Health 100, so two knife hits. The first hit knocks it into a ragdoll; it lies there for a moment, then pulls itself back together. The second hit makes it fall apart. Speed, damage and timings are on the `Dummy` node in the Inspector. Its body is built in code, so in the editor you only see its collision capsule.
 - **`scripts/crosshair.gd`**: the aiming dot in the middle of the screen.
-- **`scripts/wave_manager.gd`** (the `WaveManager` node in `forest.tscn`): runs waves 1 to 19. See **Waves** below.
+- **`scripts/wave_manager.gd`** (the `WaveManager` node in `forest.tscn`): runs all 20 waves, including the final battle. See **Waves** below.
+- **`scripts/castle.gd`** (the `Castle` node): the knight's castle, built from boxes in code (it shows in the editor too). See **The castle** below.
+- **`scripts/furnace_site.gd`**, **`scripts/furnace.gd`**, **`scripts/furnace_menu.gd`**: the furnace hologram in the courtyard, the built furnace, and the smelting panel.
+- **`scripts/victory.gd`** (the `Victory` node): the ending: slow motion, the camera pan to the castle, and the victory screen.
 - **`scripts/game_config.gd`**: **every number worth tuning, in one file**: health, damage, time ramp, breaks, army size, rescue count, soldier stats, loot drop rates, recipes, weapon stats and the hammer, blaster, dagger and armour values. Nodes' Inspector settings take their defaults from here.
 - **`scripts/army.gd`** (the `Army` node) + **`scenes/soldier.tscn`** + **`scripts/soldier.gd`**: the knight's army. See **The army** below.
 - **`scenes/arrow.tscn`** + **`scripts/arrow.gd`**: arrows shot by archers.
 - **`scripts/debug_keys.gd`** (the `DebugKeys` node): testing shortcuts (see below).
-- **`scripts/inventory.gd`** (the `Inventory` node): materials, crafted weapons, blaster shots, armour and the furnace.
+- **`scripts/inventory.gd`** (the `Inventory` node): materials, crafted weapons, blaster shots, armour, and whether the furnace is built.
 - **`scripts/loot.gd`** + **`scripts/loot_drops.gd`**: loot that pops out of defeated dummies, and the drop rolls.
 - **`scripts/crafting_menu.gd`**: the crafting menu (built in code, shown by the HUD).
 - **`scripts/knight_weapons.gd`** (the `Weapons` node on the knight): hotbar, every weapon's attack, the hammer's slam and spin.
-- **`scripts/weapon_models.gd`**, **`scripts/blaster_round.gd`**, **`scripts/effects.gd`**, **`scripts/furnace.gd`**: weapon models in the knight's hand, the blaster's exploding round, blast effects, and the furnace.
+- **`scripts/weapon_models.gd`**, **`scripts/blaster_round.gd`**, **`scripts/effects.gd`**: weapon models in the knight's hand, the blaster's exploding round, and blast effects.
 - **`scripts/mini_bosses.gd`**: the 19 mini bosses: names, colours, headgear and stats. Mini bosses use the dummy scene and script, made bigger and tougher.
 - **`scripts/world_time.gd`**: the time mechanic (autoload, reachable from any script as `WorldTime`). See below.
 - **`scenes/swinging_log.tscn`** + **`scripts/swinging_log.gd`**: a log on two ropes in front of the start point, for checking that the world slows down.
@@ -93,6 +96,24 @@ The world nearly freezes (5% speed) when you stand still. Holding a move key ram
 
 The "World time" readout in the top-left corner shows the current speed. Turn it off with **Show World Time** on the `HUD` node.
 
+## The castle
+
+- The knight's castle stands at the south edge of the forest: stone walls around a square courtyard, a tower at each corner, battlements, green-and-gold banners, and a wide gate facing the middle of the forest. The gate has no door or lintel, so everyone can walk through it, even the big boss.
+- The knight starts each game in the courtyard, facing the gate.
+- Walls and towers block the knight, enemies and soldiers, and the third-person camera stops at them instead of passing through.
+- No trees, rocks or bushes grow on the castle grounds or on the lane from the gate to the clearing. Wanted posters stay on forest trees.
+- Enemies never attack the castle, and they never spawn near it: only out in the forest.
+- Between waves (and before wave 1) the army stands around in the courtyard.
+- Sizes and spots are in `scripts/game_config.gd` (`CASTLE_*`, `KNIGHT_START`).
+
+## The furnace
+
+- A see-through blue **hologram** of the furnace pulses in the courtyard's back-right corner, labelled "Furnace: 10 stone".
+- Walk up to it: **[E] Build furnace (10 stone)**, or **Need 10 stone (you have X)** if you're short. Building takes exactly 10 stone and turns the hologram into a solid furnace with a puff of dust. It stays for the rest of the game.
+- At the built furnace, **[E] Smelt** opens the furnace panel: your coal, raw iron and iron, with **Smelt 1** (1 coal + 1 raw iron makes 1 iron) and **Smelt all** (as many as the smaller of the two). Both grey out without at least 1 of each. Each smelt makes the fire flare up. **Close (E)**, or Esc, closes it.
+- Smelting follows the crafting rules: before wave 1 and during breaks, never during a wave, and not at all from wave 15 on. Trying at the wrong time says why.
+- On touch screens the Grab button reads BUILD or SMELT at the furnace.
+
 ## Waves
 
 - **Mini boss hits** do 15 + 1 per wave (E-4).
@@ -100,30 +121,35 @@ The "World time" readout in the top-left corner shows the current speed. Turn it
 - When they're all down, **that wave's mini boss** appears, with a health bar at the top of the screen. Its health is 300 + 100 × (wave − 1), so 2,100 at wave 19. Mini bosses are bigger, hit harder, wear headgear, and only flinch when hit until they fall apart.
 - Beating the mini boss ends the wave. Then comes a **break** with a countdown: 30 seconds after wave 1, growing evenly to 60 seconds after wave 14. From wave 15 on there's no break: the next wave starts straight away.
 - **Wanted posters** show the current (or next) wave's mini boss: a little portrait, its name and its wave.
-- After the **wave 19** mini boss, a "Final battle coming soon" screen appears.
+- **Wave 20 is the final battle**: 40 dummies, **10 of the earlier mini bosses** (picked at random, each with the health it had in its own wave) and **the big boss**, The Grand Effigy. They arrive in 4 groups so nothing lags: the next group comes once only a few are left standing, or after 45 seconds. The big boss comes with the last group. The wave 20 posters show him.
+- **The big boss** has 4,000 health and a big health bar across the top. He only goes for the knight. He has two attacks, each with a warning: a heavy two-armed **swing** (his arms rise slowly first) and a **ground stomp** (a red ring grows on the ground, then everyone inside is hurt and knocked back). He never staggers. The Ultra blaster does exactly 1,000 to him, so **4 blaster hits** finish him. The Cryo dagger freezes his head; the next dagger hit does 400 instead of shattering it.
+- **The whole army** marches out of the gate when wave 20 starts: every soldier still alive. Those who died earlier stay gone.
+- **Winning:** when every enemy in wave 20 is down, time slows as the last one falls, the camera pans over to the castle where the surviving soldiers cheer in front of the gate, and then the victory screen shows "The castle is safe!" with your time, enemies defeated, mini bosses defeated and soldiers who survived, plus **Play Again** and **Quit** (Quit is hidden in the web build). Dying in wave 20 shows the normal game-over screen.
 - Breaks count down in **world time**, like everything else. Standing still stretches a break out, so walk around to make it pass. To count breaks in real seconds instead, untick **Breaks Use World Time** on the `WaveManager` node.
 - Defeated dummies' pieces shrink away after 10 seconds of world time (`debris_lifetime` on the dummy), so big waves don't pile up.
 
 **Testing later waves:**
 
-- Select the `WaveManager` node in `forest.tscn` and set **Start Wave** in the Inspector (1 to 19). The game then begins at that wave.
-- While running from the editor (debug builds only): **F2** skips to the next wave straight away, and **F3** ends a break early, or removes the current dummies so the mini boss comes out.
+- Select the `WaveManager` node in `forest.tscn` and set **Start Wave** in the Inspector (1 to 20). The game then begins at that wave.
+- Or use the testing shortcuts below (F2, F3, F6).
 
 ## The army
 
 - The army starts with **25 soldiers** (`ARMY_SIZE`), split evenly: archers, spearmen and sword fighters. All wear bright blue tabards with gold trim.
-- The first time the knight drops to **half health in a wave**, **4 soldiers** (`RESCUE_COUNT`) from the roster appear around him and fight. Only one rescue per wave.
+- Between waves the army stands in the castle courtyard.
+- In waves 1 to 19, the first time the knight drops to **half health**, **4 soldiers** (`RESCUE_COUNT`) run out of the castle gate to help. If he's more than 20 m from the gate they appear near him instead, so they arrive in time. Only one rescue per wave.
+- In **wave 20**, every soldier still alive marches out to fight.
 - **Archers** keep 8 to 14 m from their target and shoot arrows. **Spearmen** and **sword fighters** close in. Soldiers can't hurt the knight, and his knives fly through them.
 - Dummies attack whoever is nearest, the knight or a soldier. A soldier who dies is **gone for the rest of the run**.
-- When the wave is cleared, survivors go back to the roster.
+- When the wave is cleared, survivors go back to the courtyard.
 - Soldiers more than 25 m from the knight think less often and skip their walk animation.
 - The counter in the top-left shows how many are left, by role.
 
 ## Loot and crafting
 
 - **Loot:** each dummy drops 1 or 2 random materials (wood, stone, raw iron, coal, string; string is the rarest). Each mini boss drops 1 Cryo Crystal plus 3 random materials, with a 1 in 20 chance of an Ultra Crystal. Loot pops out of the body; walk over it to pick it up. What you carry shows under the health bar.
-- **Crafting** opens with **C** (Craft button on touch), only during the breaks after waves 1 to 14. "Press C to craft" shows at the top while it's open.
-- **Furnace:** build it once for 15 stone. It appears in the clearing and unlocks **Smelt**: 1 raw iron + 1 coal makes 1 iron.
+- **Crafting** opens with **C** (Craft button on touch) before wave 1 and during the breaks after waves 1 to 14. "Press C to craft" shows at the top while it's open.
+- **Iron** comes from the furnace in the castle (see **The furnace**), not from the crafting menu.
 - **Weapons** go on the hotbar at the bottom (knives are always slot 1). Melee weapons and the bow never break. Only the Ultra blaster runs out (3 shots per crafted blaster).
 
 | Weapon | Damage | Recipe | What it does |
@@ -135,7 +161,7 @@ The "World time" readout in the top-left corner shows the current speed. Turn it
 | Bow | 40 | 3 wood + 2 string | Unlimited arrows |
 | Cryo dagger | 30 | 1 Cryo + 2 stone + 1 string | A slash freezes the head; the next dagger hit shatters it. That defeats a regular dummy outright; a mini boss takes 300 instead |
 | Cryo hammer | 100 | 2 Cryo + 3 iron | Slowest. Right click: ground slam, once per wave: 150 damage within 6 m, survivors frozen for 3 s, weakened dummies (under half health) shatter. F: spin, 50 damage within 3 m, 5 s cooldown |
-| Ultra blaster | 1,000 | 1 Ultra Crystal | Lobs exploding rounds that hit everything in the blast. One hit defeats any dummy or mini boss. 3 shots, then it breaks |
+| Ultra blaster | 1,000 | 1 Ultra Crystal | Lobs exploding rounds that hit everything in the blast. One hit defeats any dummy or mini boss; the big boss takes exactly 1,000 (4 hits). 3 shots, then it breaks |
 | Cryo armour | — | 3 iron + 3 stone + 2 Cryo | Reflects 25% of melee damage back and slows the attacker by half for 1 s. The knight's armour turns icy blue |
 
 - The knight's **health refills** when a wave is cleared.
@@ -147,11 +173,13 @@ These work when running from the editor (debug builds only):
 
 | Key | What it does |
 | --- | --- |
-| F2 | Skip to the next wave straight away |
-| F3 | End a break early, or remove this wave's dummies so the mini boss comes out |
-| F4 | Drop the knight to half health (during a wave this brings in the army) |
-| F6 | Get a pile of materials: 10 of each regular material, 5 iron, 4 Cryo Crystals, 1 Ultra Crystal |
-| F7 | Let the crafting menu open at any time, not just during breaks (press again to turn off) |
+| F2 | Skip to the next wave straight away (in wave 20, win straight away) |
+| F3 | End a break early, remove this wave's dummies so the mini boss comes out, or in wave 20 send the next group |
+| F4 | Drop the knight to half health (during waves 1 to 19 this brings in the army) |
+| F6 | Jump straight to wave 20, the final battle |
+| F7 | Get 20 stone, 10 coal and 10 raw iron (to test the furnace) |
+| F8 | Get a pile of everything: 10 of each regular material, 5 iron, 4 Cryo Crystals, 1 Ultra Crystal |
+| F9 | Let crafting and smelting open at any time (press again to turn off) |
 
 You can also start at a later wave: select the `WaveManager` node in `forest.tscn` and set **Start Wave**.
 

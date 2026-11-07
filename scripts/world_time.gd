@@ -56,6 +56,9 @@ var _moving_reported := false
 var _was_moving := false
 var _step_timer := 0.0
 var _bump_left := 0.0
+## A forced speed (the victory slow-motion), and real seconds left on it (-1 = until cleared).
+var _override_speed := -1.0
+var _override_left := 0.0
 var _last_frame_usec := 0
 
 
@@ -93,6 +96,10 @@ func _process(_delta: float) -> void:
 			_ramp_speed = maxf(_ramp_speed - drop_step_size, slow_speed)
 
 	_bump_left = maxf(_bump_left - real_delta, 0.0)
+	if _override_speed >= 0.0 and _override_left >= 0.0:
+		_override_left -= real_delta
+		if _override_left < 0.0:
+			_override_speed = -1.0
 	_apply_speed()
 
 
@@ -112,11 +119,25 @@ func bump() -> void:
 	_bump_left = bump_time
 
 
+## Forces world speed to `forced_speed` for `seconds` real seconds, or until
+## clear_override() if seconds is negative. Used for the victory slow-motion.
+func set_override(forced_speed: float, seconds := -1.0) -> void:
+	_override_speed = forced_speed
+	# A negative timer would end the override straight away, so "until cleared" is a huge number.
+	_override_left = seconds if seconds >= 0.0 else 1.0e9
+
+
+func clear_override() -> void:
+	_override_speed = -1.0
+
+
 func _apply_speed() -> void:
 	speed = _ramp_speed
 	if _bump_left > 0.0:
 		speed = maxf(speed, bump_speed)
 	if not enabled:
 		speed = 1.0
+	if _override_speed >= 0.0:
+		speed = _override_speed
 	Engine.time_scale = speed
 	AudioServer.playback_speed_scale = speed

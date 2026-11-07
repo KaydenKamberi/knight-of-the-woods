@@ -16,6 +16,12 @@ extends CharacterBody3D
 ## are bigger, tougher, wear headgear, and only flinch when hit until their
 ## health runs out, then fall apart like any dummy.
 ##
+## The big boss of wave 20 (M6) uses this script too, set up by
+## configure_big_boss(): much bigger, glowing eyes, goes only for the knight,
+## and has two attacks with wind-up warnings: a heavy two-armed swing, and a
+## ground stomp that knocks everyone nearby back (a red ring grows on the ground
+## before it lands). It never staggers, and the Cryo dagger can't shatter its head.
+##
 ## Crafted weapons (M5.5) can also freeze a dummy solid (hammer slam), freeze
 ## its head (Cryo dagger) so the next dagger hit shatters it, or slow it (Cryo
 ## armour). A defeated dummy drops loot.
@@ -24,7 +30,7 @@ extends CharacterBody3D
 signal defeated
 signal health_changed(health: int, max_health: int)
 
-enum State { WALKING, ATTACKING, RAGDOLL, REASSEMBLING, DEFEATED }
+enum State { WALKING, ATTACKING, STOMPING, RAGDOLL, REASSEMBLING, DEFEATED }
 
 ## Physics layer values (see Project Settings > Layer Names > 3D Physics).
 const WORLD_LAYER := 1
@@ -32,6 +38,7 @@ const DEBRIS_LAYER := 16
 const MiniBosses := preload("res://scripts/mini_bosses.gd")
 const Config := preload("res://scripts/game_config.gd")
 const LootDrops := preload("res://scripts/loot_drops.gd")
+const Effects := preload("res://scripts/effects.gd")
 const ICE_COLOR := Color(0.6, 0.85, 1.0)
 
 @export var max_health := Config.DUMMY_HEALTH
@@ -69,6 +76,7 @@ const ICE_COLOR := Color(0.6, 0.85, 1.0)
 var health := 0
 var state := State.WALKING
 var is_mini_boss := false
+var is_big_boss := false
 var boss_name := ""
 
 ## What it's walking at: the knight or a soldier (anything in the "dummy_targets" group).
@@ -92,6 +100,8 @@ var _frozen_left := 0.0
 var _slow_left := 0.0
 var _slow_factor := 1.0
 var _head_ice: MeshInstance3D
+var _stomp_cooldown_left := 0.0
+var _stomp_ring: MeshInstance3D
 ## The cloth materials and their normal colours, so freezing can tint them icy and back.
 var _body_materials := {}
 
@@ -123,6 +133,20 @@ func configure_mini_boss(info: Dictionary) -> void:
 	ragdoll_on_hit = false
 
 
+## Turns this dummy into the big boss of wave 20. Call before adding it to the scene.
+func configure_big_boss(info: Dictionary) -> void:
+	configure_mini_boss(info)
+	is_big_boss = true
+	attack_windup = Config.BIG_BOSS_SWING_WINDUP
+	_stomp_cooldown_left = Config.BIG_BOSS_STOMP_COOLDOWN * 0.5
+
+
+## Mini bosses and the big boss: they flinch instead of going ragdoll, and the
+## hammer slam and dagger never shatter them outright.
+func is_boss() -> bool:
+	return is_mini_boss or is_big_boss
+
+
 func _physics_process(delta: float) -> void:
 	_slow_left = maxf(_slow_left - delta, 0.0)
 	if _frozen_left > 0.0:
@@ -140,6 +164,8 @@ func _physics_process(delta: float) -> void:
 			_walk(action_delta)
 		State.ATTACKING:
 			_attack(action_delta)
+		State.STOMPING:
+			_stomp(action_delta)
 		State.RAGDOLL:
 			if _state_time >= ragdoll_time:
 				_reassemble()
@@ -211,6 +237,9 @@ func shatter_head(from: Vector3) -> void:
 		return
 	_head_ice.queue_free()
 	_head_ice = null
+	if is_big_boss:
+		take_hit(Config.BIG_BOSS_HEAD_SHATTER_DAMAGE, from)
+		return
 	if is_mini_boss:
 		take_hit(Config.DAGGER_SHATTER_BOSS_DAMAGE, from)
 		return
@@ -291,8 +320,12 @@ func _walk(delta: float) -> void:
 
 	_turn_towards(to_target if has_target else direction, delta)
 	_animate_walk(delta, Vector2(velocity.x, velocity.z).length() / walk_speed)
+	_stomp_cooldown_left = maxf(_stomp_cooldown_left - delta, 0.0)
 	if has_target and distance <= attack_range:
 		_start(State.ATTACKING)
+	elif is_big_boss and has_target and _stomp_cooldown_left == 0.0 \
+			and distance <= Config.BIG_BOSS_STOMP_RADIUS * 0.8:
+		_start_stomp()
 
 
 func _attack(delta: float) -> void:
@@ -325,10 +358,12 @@ func _attack(delta: float) -> void:
 
 
 ## A mini boss rocks back and stops for a moment instead of going ragdoll.
+## The big boss just rocks; it never stops.
 func _flinch() -> void:
 	if _flinch_tween:
 		_flinch_tween.kill()
-	_stagger_left = 0.3
+	if not is_big_boss:
+		_stagger_left = 0.3
 	_flinch_tween = create_tween()
 	_flinch_tween.tween_property(_body, "rotation:x", 0.3, 0.08)
 	_flinch_tween.tween_property(_body, "rotation:x", 0.0, 0.25)
@@ -341,6 +376,12 @@ func _update_target(delta: float) -> void:
 		return
 	_retarget_left = 0.5
 	_target = null
+	if is_big_boss:
+		# The big boss only ever goes for the knight.
+		var knight = get_tree().get_first_node_in_group("player")
+		if _is_good_target(knight):
+			_target = knight
+		return
 	var nearest_distance := INF
 	var targets: Array = get_tree().get_nodes_in_group("dummy_targets")
 	for candidate in targets:
@@ -360,6 +401,75 @@ func _set_ice_tint(frozen: bool) -> void:
 
 func _is_good_target(candidate) -> bool:
 	return is_instance_valid(candidate) and candidate.is_alive()
+
+
+# --- The big boss's ground stomp ------------------------------------------------
+
+func _start_stomp() -> void:
+	_start(State.STOMPING)
+	velocity = Vector3.ZERO
+	# The warning: a red ring on the ground, growing to the stomp's full size.
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(0.9, 0.1, 0.05, 0.35)
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var disc := CylinderMesh.new()
+	disc.top_radius = Config.BIG_BOSS_STOMP_RADIUS
+	disc.bottom_radius = Config.BIG_BOSS_STOMP_RADIUS
+	disc.height = 0.02
+	disc.radial_segments = 24
+	disc.rings = 0
+	disc.material = material
+	_stomp_ring = MeshInstance3D.new()
+	_stomp_ring.mesh = disc
+	_stomp_ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	get_tree().current_scene.add_child(_stomp_ring)
+	_stomp_ring.global_position = Vector3(global_position.x, 0.03, global_position.z)
+	_stomp_ring.scale = Vector3(0.2, 1.0, 0.2)
+	var grow := _stomp_ring.create_tween()
+	grow.tween_property(_stomp_ring, "scale", Vector3.ONE, Config.BIG_BOSS_STOMP_WINDUP)
+
+
+func _stomp(delta: float) -> void:
+	_apply_gravity(delta)
+	move_and_slide()
+	var windup := Config.BIG_BOSS_STOMP_WINDUP
+	if _state_time < windup:
+		# Wind-up: lift a leg high and lean back.
+		var lift := clampf(_state_time / windup, 0.0, 1.0)
+		_pivots["thigh_r"].rotation.x = lift * 1.4
+		_pivots["shin_r"].rotation.x = -lift * 1.2
+		_body.rotation.x = lift * 0.15
+		return
+	if not _swung:
+		_swung = true
+		_pivots["thigh_r"].rotation.x = 0.0
+		_pivots["shin_r"].rotation.x = 0.0
+		_body.rotation.x = 0.0
+		_land_stomp()
+	if _state_time >= windup + 0.6:
+		_stomp_cooldown_left = Config.BIG_BOSS_STOMP_COOLDOWN
+		_start(State.WALKING)
+
+
+## The stomp lands: everyone in the ring is hurt and knocked away.
+func _land_stomp() -> void:
+	if is_instance_valid(_stomp_ring):
+		_stomp_ring.queue_free()
+	var center := global_position
+	Effects.burst(center + Vector3.UP * 0.3, Config.BIG_BOSS_STOMP_RADIUS, Color(0.6, 0.5, 0.4), get_tree().current_scene)
+	var targets: Array = get_tree().get_nodes_in_group("dummy_targets")
+	for target in targets:
+		if not target.is_alive():
+			continue
+		var away: Vector3 = target.global_position - center
+		away.y = 0.0
+		if away.length() > Config.BIG_BOSS_STOMP_RADIUS:
+			continue
+		target.take_damage(Config.BIG_BOSS_STOMP_DAMAGE, center, self)
+		if target.has_method("apply_knockback"):
+			var push := away.normalized() if away.length_squared() > 0.01 else Vector3.FORWARD
+			target.apply_knockback(push * Config.BIG_BOSS_STOMP_KNOCKBACK)
 
 
 func _start(new_state: State) -> void:
@@ -417,6 +527,8 @@ func _go_ragdoll() -> void:
 		_reassemble_tween.kill()
 	if _flinch_tween:
 		_flinch_tween.kill()
+	if is_instance_valid(_stomp_ring):
+		_stomp_ring.queue_free()
 	_start(State.RAGDOLL)
 	_frozen_left = 0.0
 	_set_ice_tint(false)
@@ -639,6 +751,15 @@ func _add_details() -> void:
 			_add_box(head, Vector3(0.04, 0.12, 0.04) * k, straw, Vector3(x, 0.18, 0) * k, x * 2.5)
 	else:
 		MiniBosses.add_headgear(head, headgear, 0.3 * k, 0.3 * k)
+	if is_big_boss:
+		# Glowing red eyes behind the stitches.
+		var glow := StandardMaterial3D.new()
+		glow.albedo_color = Color(1.0, 0.2, 0.1)
+		glow.emission_enabled = true
+		glow.emission = Color(1.0, 0.15, 0.05)
+		glow.emission_energy_multiplier = 3.0
+		for x in [-0.07, 0.07]:
+			_add_box(head, Vector3(0.06, 0.05, 0.01) * k, glow, Vector3(x, 0.03, -0.151) * k)
 
 	var pelvis: Node3D = _find_part("pelvis")["mesh"]
 	_add_box(pelvis, Vector3(0.38, 0.05, 0.26) * k, stitch, Vector3(0, 0.08, 0) * k)

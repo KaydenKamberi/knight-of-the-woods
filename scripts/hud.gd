@@ -12,8 +12,10 @@ extends CanvasLayer
 ## - Army counter (A-5) and short messages when soldiers arrive or fall.
 ## - Hotbar (R-15), carried materials, "+1 Wood" messages, and the crafting
 ##   menu (C / Craft button, only during crafting breaks).
+## - The furnace panel (E at the built furnace, only when smelting is allowed).
+## - The big boss's health bar across the top in wave 20.
 ## - Game-over screen with a Restart button when the knight falls, and the
-##   "Final battle coming soon" screen after wave 19.
+##   victory screen ("The castle is safe!") with stats after the final battle.
 
 signal input_mode_changed(touch: bool)
 ## Forwarded from the touch controls, in screen pixels.
@@ -22,6 +24,7 @@ signal crafting_menu_toggled(open: bool)
 
 const TouchControls := preload("res://scripts/touch_controls.gd")
 const CraftingMenu := preload("res://scripts/crafting_menu.gd")
+const FurnaceMenu := preload("res://scripts/furnace_menu.gd")
 const Config := preload("res://scripts/game_config.gd")
 const HOTBAR_SLOTS := 9
 
@@ -37,6 +40,8 @@ var _banner_tween: Tween
 var _crafting_available := false
 var _knives_left := 0
 var _crafting_menu: CraftingMenu
+var _furnace_menu: FurnaceMenu
+var _final_wave := false
 var _hotbar_slots: Array[Label] = []
 var _slot_style: StyleBoxFlat
 var _selected_style: StyleBoxFlat
@@ -66,13 +71,25 @@ var _selected_style: StyleBoxFlat
 @onready var _craft_hint: Label = $WaveInfo/CraftHint
 @onready var _hotbar: HBoxContainer = $Hotbar
 @onready var _status: Control = $Status
+@onready var _wave_info: Control = $WaveInfo
+@onready var _big_boss_panel: Control = $BigBoss
+@onready var _big_boss_bar: ProgressBar = $BigBoss/Bar
+@onready var _big_boss_name: Label = $BigBoss/Bar/Name
+@onready var _end_stats: Label = $GameOver/Center/Stats
+@onready var _quit_button: Button = $GameOver/Center/QuitButton
 
 
 func _ready() -> void:
 	add_to_group("hud")
 	_touch_controls.look_dragged.connect(func(relative: Vector2) -> void: look_dragged.emit(relative))
 	_restart_button.pressed.connect(_on_restart_pressed)
+	_quit_button.pressed.connect(_on_quit_pressed)
 	_build_hotbar()
+	_furnace_menu = FurnaceMenu.new()
+	_furnace_menu.name = "FurnaceMenu"
+	_furnace_menu.visible = false
+	_furnace_menu.close_requested.connect(close_furnace_menu)
+	add_child(_furnace_menu)
 	_crafting_menu = CraftingMenu.new()
 	_crafting_menu.name = "CraftingMenu"
 	_crafting_menu.visible = false
@@ -83,6 +100,12 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _furnace_menu.visible:
+		# E (or Esc) closes the furnace panel.
+		if event.is_action_pressed("interact") or event.is_action_pressed("pause"):
+			close_furnace_menu()
+			get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("craft"):
 		if _crafting_menu.visible:
 			close_crafting()
@@ -134,10 +157,11 @@ func set_shift_lock(enabled: bool) -> void:
 	_shift_lock_label.visible = enabled
 
 
-func set_pickup_prompt(prompt: String) -> void:
+func set_pickup_prompt(prompt: String, button := "GRAB") -> void:
 	_pickup_prompt = prompt
 	_pickup_label.text = "[E]  " + prompt
 	_touch_controls.grab_visible = not prompt.is_empty()
+	_touch_controls.grab_label = button
 
 
 ## Freezes the game and shows the game-over screen.
@@ -148,7 +172,7 @@ func show_game_over() -> void:
 # --- Crafting -------------------------------------------------------------------
 
 func open_crafting() -> void:
-	if not _crafting_available or _game_over.visible:
+	if not _crafting_available or _game_over.visible or _furnace_menu.visible:
 		return
 	_crafting_menu.open()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -175,6 +199,34 @@ func on_crafting_available_changed(available: bool) -> void:
 	_touch_controls.craft_visible = available
 	if not available:
 		close_crafting()
+		close_furnace_menu()
+
+
+# --- Furnace --------------------------------------------------------------------
+
+## Opened by the furnace site (E at the built furnace). Smelting follows the
+## crafting rules: before wave 1 and during breaks, never from wave 15 on.
+func open_furnace_menu() -> void:
+	if _game_over.visible or _crafting_menu.visible or _furnace_menu.visible:
+		return
+	var waves = get_tree().get_first_node_in_group("wave_manager")
+	if waves != null and not waves.can_craft():
+		show_toast(waves.workshop_closed_reason())
+		return
+	_furnace_menu.open()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_touch_controls.visible = false
+	_status.visible = false
+	crafting_menu_toggled.emit(true)
+
+
+func close_furnace_menu() -> void:
+	if not _furnace_menu.visible:
+		return
+	_furnace_menu.visible = false
+	_status.visible = true
+	_touch_controls.visible = touch_mode and not _game_over.visible
+	crafting_menu_toggled.emit(false)
 
 
 func _watch_inventory() -> void:
@@ -284,11 +336,14 @@ func show_toast(text: String) -> void:
 
 func on_wave_started(wave: int, last_wave: int) -> void:
 	_wave_label.text = "Wave %d / %d" % [wave, last_wave]
-	_show_banner("Wave %d" % wave)
+	_final_wave = wave >= last_wave
+	_show_banner("The final battle!" if _final_wave else "Wave %d" % wave)
 
 
 func on_dummies_left_changed(count: int) -> void:
-	if count > 0:
+	if _final_wave:
+		_enemies_label.text = "Enemies left: %d" % count
+	elif count > 0:
 		_enemies_label.text = "Dummies left: %d" % count
 	else:
 		_enemies_label.text = "The mini boss is coming..."
@@ -320,15 +375,55 @@ func on_wave_cleared(wave: int) -> void:
 	_show_banner("Wave %d cleared!" % wave)
 
 
-func show_final_battle_placeholder() -> void:
-	_show_end_screen("Final battle coming soon",
-			"You beat all 19 waves! The battle at the castle gates is on its way.")
+func on_big_boss_appeared(boss_name: String) -> void:
+	_big_boss_name.text = boss_name
+	_big_boss_panel.visible = true
+	_show_banner("%s is here!" % boss_name)
+
+
+func on_big_boss_health_changed(health: int, max_health: int) -> void:
+	_big_boss_bar.max_value = max_health
+	_big_boss_bar.value = health
+	if health <= 0:
+		_big_boss_panel.visible = false
+
+
+func on_army_marched_out(count: int) -> void:
+	if count > 0:
+		show_toast("The whole army marches out! (%d soldiers)" % count)
+
+
+# --- Winning (called by the Victory node) ---------------------------------------
+
+## Clears the screen for the camera pan over the castle.
+func hide_for_cutscene() -> void:
+	close_crafting()
+	close_furnace_menu()
+	for node: CanvasItem in [_status, _wave_info, _big_boss_panel, _hotbar, _crosshair,
+			_pickup_label, _pc_hint, _touch_controls, _banner]:
+		node.visible = false
+	_pickup_prompt = ""
+	set_process(false)
+
+
+## The victory screen: "The castle is safe!" with the run's numbers.
+func show_victory(stats: Dictionary, soldiers_left: int, army_size: int) -> void:
+	var seconds := int(stats.get("time", 0.0))
+	_end_stats.text = "Time played: %d:%02d\nEnemies defeated: %d\nMini bosses defeated: %d\nSoldiers who survived: %d / %d" % [
+			seconds / 60, seconds % 60, stats.get("enemies", 0), stats.get("mini_bosses", 0),
+			soldiers_left, army_size]
+	_end_stats.visible = true
+	_restart_button.text = "Play Again"
+	# Quitting means nothing in a web page, so only offer it on PC.
+	_quit_button.visible = not OS.has_feature("web")
+	_show_end_screen("The castle is safe!", "%s has fallen and the woods are still again." % Config.BIG_BOSS_NAME)
 
 
 # -----------------------------------------------------------------------------
 
 func _show_end_screen(title: String, subtitle: String) -> void:
 	close_crafting()
+	close_furnace_menu()
 	_end_title.text = title
 	_end_subtitle.text = subtitle
 	get_tree().paused = true
@@ -345,7 +440,12 @@ func _show_end_screen(title: String, subtitle: String) -> void:
 
 func _on_restart_pressed() -> void:
 	get_tree().paused = false
+	WorldTime.clear_override()
 	get_tree().reload_current_scene()
+
+
+func _on_quit_pressed() -> void:
+	get_tree().quit()
 
 
 ## Shows big text in the middle of the screen for a couple of seconds.

@@ -61,7 +61,9 @@ func _explode(at: Vector3) -> void:
 			continue
 		var body_middle: Vector3 = enemy.global_position + Vector3.UP
 		if body_middle.distance_to(at) <= Config.BLASTER_BLAST_RADIUS:
-			# R-17: one blaster hit defeats any regular dummy or mini boss.
-			enemy.take_hit(maxi(damage, enemy.health), at, 9.0)
+			# R-17: one blaster hit defeats any regular dummy or mini boss. The big
+			# boss takes exactly 1,000 a hit, so four hits bring him down (V-8).
+			var hit: int = damage if enemy.is_big_boss else maxi(damage, enemy.health)
+			enemy.take_hit(hit, at, 9.0)
 	WorldTime.bump()
 	queue_free()

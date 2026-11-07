@@ -62,7 +62,13 @@ var lock_on := false:
 	set(value):
 		lock_on = value
 		queue_redraw()
-## Set by the HUD: shows the Grab button while a knife is in reach.
+## Set by the HUD: the word on the Grab button ("GRAB", or "BUILD"/"SMELT" at the furnace).
+var grab_label := "GRAB":
+	set(value):
+		if value != grab_label:
+			grab_label = value
+			queue_redraw()
+## Set by the HUD: shows the Grab button while a knife (or the furnace) is in reach.
 var grab_visible := false:
 	set(value):
 		grab_visible = value
@@ -247,7 +253,7 @@ func _draw() -> void:
 	draw_rect(Rect2(throw_center + Vector2(-3, -3) * k, Vector2(6, 12) * k), Color(1, 1, 1, 0.9 * throw_alpha))
 
 	if grab_visible:
-		_draw_round_button(_grab_button_center(), grab_button_radius, "GRAB", 1.0)
+		_draw_round_button(_grab_button_center(), grab_button_radius, grab_label, 1.0)
 	_draw_round_button(size - weapon_button_home, small_button_radius, "WEAPON", 0.9)
 	if hammer_equipped:
 		_draw_round_button(size - slam_button_home, small_button_radius, "SLAM", 1.0)
