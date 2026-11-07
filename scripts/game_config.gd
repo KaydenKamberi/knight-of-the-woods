@@ -40,6 +40,24 @@ const MINI_BOSS_HEALTH_PER_WAVE := 100
 ## Mini boss hit: base + per_wave × wave. 16 in wave 1, 34 in wave 19 (E-4).
 const MINI_BOSS_BASE_DAMAGE := 15
 const MINI_BOSS_DAMAGE_PER_WAVE := 1
+## Regular enemies' looks (D-1). Every wave mixes them. Apart from bandits they
+## all fight exactly like the version 1 dummies; riders sit on a horse.
+const ENEMY_LOOKS := ["bandit", "archer", "swordsman", "rider"]
+const ENEMY_LOOK_COLORS := {
+	"bandit": Color(0.33, 0.29, 0.27),
+	"archer": Color(0.42, 0.53, 0.3),
+	"swordsman": Color(0.66, 0.27, 0.22),
+	"rider": Color(0.36, 0.43, 0.63),
+}
+const HORSE_COLOR := Color(0.5, 0.34, 0.22)
+## Bandits (D-2 to D-5): touching the knight steals this many random materials
+## (never weapons), once per bandit. The thief then runs for the nearest map
+## edge this much faster than it walks, and is gone (with the loot) if it gets
+## this far from the middle of the forest.
+const BANDIT_STEAL_AMOUNT := 5
+const BANDIT_FLEE_SPEED := 1.5
+const BANDIT_ESCAPE_RADIUS := 32.5
+
 # --- The big boss (wave 20, V-4, V-5, V-8) -----------------------------------------
 
 const BIG_BOSS_NAME := "The Grand Effigy"

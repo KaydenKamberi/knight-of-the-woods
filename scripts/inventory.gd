@@ -133,6 +133,25 @@ func spend(material: String, amount := 1) -> bool:
 	return true
 
 
+## A bandit takes `count` random materials, one at a time (D-2). Weapons are
+## never stolen. Returns what was taken, e.g. {"wood": 2, "stone": 3}.
+func steal(count: int) -> Dictionary:
+	var taken := {}
+	for i in count:
+		var carried: Array[String] = []
+		for id in materials:
+			if materials[id] > 0:
+				carried.append(id)
+		if carried.is_empty():
+			break
+		var id: String = carried[randi() % carried.size()]
+		materials[id] -= 1
+		taken[id] = taken.get(id, 0) + 1
+	if not taken.is_empty():
+		changed.emit()
+	return taken
+
+
 ## A short "3 wood + 2 stone" description of a cost.
 static func describe_cost(cost: Dictionary) -> String:
 	var parts: Array[String] = []

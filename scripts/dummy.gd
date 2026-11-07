@@ -22,11 +22,20 @@ extends CharacterBody3D
 ## ground stomp that knocks everyone nearby back (a red ring grows on the ground
 ## before it lands). It never staggers, and the Cryo dagger can't shatter its head.
 ##
+## Regular enemies (Update 2, D-1) come in four looks: bandits, archers,
+## swordsmen and horseback riders, set by `look` before the enemy is added. They
+## all fight exactly like the version 1 dummies. Riders sit on a horse that stays
+## put while the rider is knocked off, and trots away when the rider is beaten.
+## Bandits steal (D-2 to D-5): the first time one touches the knight it takes 5
+## random materials, shows "Stolen!", gets a sack and a THIEF marker, and runs
+## for the nearest edge of the map. Killing it drops everything it took;
+## reaching the edge means the materials are gone for good. One theft each.
+##
 ## Crafted weapons (M5.5) can also freeze a dummy solid (hammer slam), freeze
 ## its head (Cryo dagger) so the next dagger hit shatters it, or slow it (Cryo
 ## armour). A defeated dummy drops loot.
 
-## Sent once, when the dummy's health reaches zero.
+## Sent once, when the dummy's health reaches zero (or a bandit gets away).
 signal defeated
 signal health_changed(health: int, max_health: int)
 
@@ -46,6 +55,8 @@ const Fx := preload("res://scripts/fx.gd")
 ## there are more than the graphics setting allows, the oldest are cleared.
 static var _fallen: Array = []
 const ICE_COLOR := Color(0.6, 0.85, 1.0)
+## How far a rider sits above where a dummy on foot would stand.
+const RIDER_LIFT := 0.55
 
 @export var max_health := Config.DUMMY_HEALTH
 @export var walk_speed := 2.2
@@ -61,6 +72,9 @@ const ICE_COLOR := Color(0.6, 0.85, 1.0)
 @export var attack_cooldown := 1.0
 
 @export_group("Look")
+## "" (a plain training dummy, as mini bosses are), or one of the regular enemy
+## looks: "bandit", "archer", "swordsman" or "rider" (D-1).
+@export var look := ""
 ## Scales the whole body. Mini bosses are about 1.5 to 1.9.
 @export var size_scale := 1.0
 @export var cloth_color := Color(0.74, 0.62, 0.42)
@@ -86,6 +100,8 @@ var is_big_boss := false
 var boss_name := ""
 ## The wave a mini boss belongs to (grenades take 1 / (wave × 2) of its health, G-3).
 var boss_wave := 0
+## True if this was a bandit that reached the edge of the map with its loot (D-4).
+var escaped := false
 
 ## What it's walking at: the knight or a soldier (anything in the "dummy_targets" group).
 var _target = null
@@ -119,6 +135,14 @@ var _skipped_frames := 0
 var _cleared := false
 ## The cloth materials and their normal colours, so freezing can tint them icy and back.
 var _body_materials := {}
+# Riders: the horse and its leg pivots.
+var _horse: Node3D
+var _horse_legs: Array[Node3D] = []
+# Bandits: what was stolen, and whether it's running away with it.
+var _stolen := {}
+var _has_stolen := false
+var _fleeing := false
+var _thief_marker: Label3D
 
 @onready var _body: Node3D = $Body
 @onready var _collision: CollisionShape3D = $Collision
@@ -127,6 +151,8 @@ var _body_materials := {}
 
 
 func _ready() -> void:
+	if not is_boss() and Config.ENEMY_LOOK_COLORS.has(look):
+		cloth_color = Config.ENEMY_LOOK_COLORS[look]
 	health = max_health
 	add_to_group("dummies")
 	_fit_collision_to_size()
@@ -315,6 +341,13 @@ func _apply_hit(part: Dictionary, damage: int, direction: Vector3, push: float, 
 			_set_ice_tint(false)
 			_stop_frost()
 			LootDrops.drop_from(self, is_mini_boss)
+			if not _stolen.is_empty():
+				# D-3: a killed thief drops everything it stole.
+				LootDrops.drop_items(self, _stolen)
+				_stolen.clear()
+			if is_instance_valid(_thief_marker):
+				_thief_marker.queue_free()
+			_send_horse_away()
 			defeated.emit()
 		elif not ragdoll_on_hit or not knockdown:
 			_flinch()
@@ -330,6 +363,9 @@ func _apply_hit(part: Dictionary, damage: int, direction: Vector3, push: float, 
 # --- Walking and attacking ---------------------------------------------------
 
 func _walk(delta: float) -> void:
+	if _fleeing:
+		_flee(delta)
+		return
 	_update_target(delta)
 	var has_target: bool = _target != null
 	var to_target := Vector3.ZERO
@@ -365,6 +401,9 @@ func _walk(delta: float) -> void:
 	_animate_walk(delta, Vector2(velocity.x, velocity.z).length() / walk_speed)
 	_stomp_cooldown_left = maxf(_stomp_cooldown_left - delta, 0.0)
 	if has_target and distance <= attack_range:
+		# D-2: a bandit that touches the knight steals instead of swinging.
+		if look == "bandit" and not _has_stolen and _target.is_in_group("player") and _steal():
+			return
 		_start(State.ATTACKING)
 	elif is_big_boss and has_target and _stomp_cooldown_left == 0.0 \
 			and distance <= Config.BIG_BOSS_STOMP_RADIUS * 0.8:
@@ -561,6 +600,14 @@ func _animate_walk(delta: float, amount: float) -> void:
 	_pivots["thigh_r"].rotation.x = -swing
 	_pivots["shin_l"].rotation.x = -0.5 * amount * (0.5 + 0.5 * sin(_walk_cycle + 1.6))
 	_pivots["shin_r"].rotation.x = -0.5 * amount * (0.5 + 0.5 * sin(_walk_cycle + 1.6 + PI))
+	if is_instance_valid(_horse):
+		# A rider sits still in the saddle while the horse's legs do the walking.
+		for side in ["_l", "_r"]:
+			_pivots["thigh" + side].rotation.x = 1.3
+			_pivots["shin" + side].rotation.x = -1.3
+		for i in _horse_legs.size():
+			var phase := 0.0 if i == 0 or i == 3 else PI
+			_horse_legs[i].rotation.x = sin(_walk_cycle + phase) * 0.6 * amount
 	if state == State.WALKING:
 		_pivots["upper_arm_l"].rotation.x = -swing * 0.8
 		_pivots["upper_arm_r"].rotation.x = swing * 0.8
@@ -633,9 +680,11 @@ func _go_ragdoll() -> void:
 func _reassemble() -> void:
 	_start(State.REASSEMBLING)
 	var pelvis: RigidBody3D = _parts[0]["body"]
-	var spot := pelvis.global_position
-	spot.y = global_position.y
-	global_position = spot
+	# A rider climbs back onto its horse, which stayed where it was.
+	if not is_instance_valid(_horse):
+		var spot := pelvis.global_position
+		spot.y = global_position.y
+		global_position = spot
 	if _is_good_target(_target):
 		var to_target: Vector3 = _target.global_position - global_position
 		_body.rotation.y = atan2(-to_target.x, -to_target.z)
@@ -692,10 +741,12 @@ func _clear_debris() -> void:
 func _fit_collision_to_size() -> void:
 	# The capsule shape is shared by every dummy, so give this one its own copy.
 	var capsule := (_collision.shape as CapsuleShape3D).duplicate() as CapsuleShape3D
-	capsule.radius *= size_scale
-	capsule.height *= size_scale
+	# A rider on its horse is taller and wider.
+	var rider_grow := 1.4 if look == "rider" else 1.0
+	capsule.radius *= size_scale * rider_grow
+	capsule.height *= size_scale * rider_grow
 	_collision.shape = capsule
-	_collision.position.y *= size_scale
+	_collision.position.y *= size_scale * rider_grow
 
 
 func _part_hit_by(collider: Object, point: Vector3) -> Dictionary:
@@ -748,6 +799,17 @@ func _part_specs() -> Array[Dictionary]:
 					"center": Vector3(0.1 * side, 0.24, 0), "size": Vector3(0.13, 0.42, 0.13),
 					"mass": 2.0, "material": "limb"},
 		])
+	if look == "rider":
+		# Sitting on a horse: everything is lifted, with the legs either side of it.
+		for spec in specs:
+			var lift := Vector3(0, RIDER_LIFT, 0)
+			spec["joint"] += lift
+			spec["center"] += lift
+			if String(spec["name"]).begins_with("thigh") or String(spec["name"]).begins_with("shin"):
+				var joint: Vector3 = spec["joint"]
+				var center: Vector3 = spec["center"]
+				spec["joint"] = Vector3(joint.x * 2.6, joint.y, joint.z)
+				spec["center"] = Vector3(center.x * 2.6, center.y, center.z)
 	for spec in specs:
 		spec["joint"] *= size_scale
 		spec["center"] *= size_scale
@@ -807,9 +869,10 @@ func _add_details() -> void:
 
 	var k := size_scale
 	var torso: Node3D = _find_part("torso")["mesh"]
-	_add_disc(torso, 0.13 * k, red, Vector3(0, 0.04, -0.133) * k)
-	_add_disc(torso, 0.085 * k, white, Vector3(0, 0.04, -0.136) * k)
-	_add_disc(torso, 0.04 * k, red, Vector3(0, 0.04, -0.139) * k)
+	if look.is_empty():
+		_add_disc(torso, 0.13 * k, red, Vector3(0, 0.04, -0.133) * k)
+		_add_disc(torso, 0.085 * k, white, Vector3(0, 0.04, -0.136) * k)
+		_add_disc(torso, 0.04 * k, red, Vector3(0, 0.04, -0.139) * k)
 
 	var head: Node3D = _find_part("head")["mesh"]
 	for x in [-0.07, 0.07]:
@@ -817,7 +880,9 @@ func _add_details() -> void:
 		for tilt in [PI / 4.0, -PI / 4.0]:
 			_add_box(head, Vector3(0.09, 0.016, 0.01) * k, stitch, Vector3(x, 0.03, -0.152) * k, tilt)
 	_add_box(head, Vector3(0.13, 0.014, 0.01) * k, stitch, Vector3(0, -0.07, -0.152) * k)
-	if headgear.is_empty():
+	if not look.is_empty():
+		_add_look_details(head, torso)
+	elif headgear.is_empty():
 		for i in 3:
 			var x := (i - 1) * 0.07
 			_add_box(head, Vector3(0.04, 0.12, 0.04) * k, straw, Vector3(x, 0.18, 0) * k, x * 2.5)
@@ -833,6 +898,180 @@ func _add_details() -> void:
 	_add_box(pelvis, Vector3(0.38, 0.05, 0.26) * k, stitch, Vector3(0, 0.08, 0) * k)
 
 
+## The clothes and gear that make each regular enemy look (D-1). Everything
+## hangs off a body part, so it falls with the ragdoll.
+func _add_look_details(head: Node3D, torso: Node3D) -> void:
+	var k := size_scale
+	var steel := _material(Color(0.62, 0.65, 0.7))
+	var leather := _material(Color(0.36, 0.24, 0.14))
+	var pelvis: Node3D = _find_part("pelvis")["mesh"]
+	match look:
+		"bandit":
+			# A dark hood and a red bandana over the mouth, with a knife at the belt.
+			var hood := _material(cloth_color.darkened(0.25))
+			_add_piece(head, Vector3(0.34, 0.12, 0.34) * k, hood, Vector3(0, 0.17, 0.01) * k)
+			_add_piece(head, Vector3(0.34, 0.3, 0.06) * k, hood, Vector3(0, 0.0, 0.17) * k)
+			for x in [-0.17, 0.17]:
+				_add_piece(head, Vector3(0.04, 0.3, 0.32) * k, hood, Vector3(x, 0.0, 0.0) * k)
+			_add_piece(head, Vector3(0.32, 0.11, 0.03) * k, _material(Color(0.72, 0.15, 0.12)), Vector3(0, -0.08, -0.155) * k)
+			_add_piece(pelvis, Vector3(0.04, 0.2, 0.04) * k, steel, Vector3(0.2, -0.04, -0.1) * k, Vector3(0, 0, 0.3))
+		"archer":
+			# A pointed green cap with a red feather, a quiver of arrows and a bow on the back.
+			var cap := _material(cloth_color.darkened(0.2))
+			_add_piece(head, Vector3(0.33, 0.1, 0.33) * k, cap, Vector3(0, 0.18, 0) * k)
+			_add_piece(head, Vector3(0.18, 0.14, 0.24) * k, cap, Vector3(0, 0.26, 0.03) * k, Vector3(0.4, 0, 0))
+			_add_piece(head, Vector3(0.02, 0.18, 0.05) * k, _material(Color(0.8, 0.2, 0.15)), Vector3(0.14, 0.27, 0.06) * k, Vector3(0, 0, -0.5))
+			_add_piece(torso, Vector3(0.12, 0.42, 0.12) * k, leather, Vector3(0.1, 0.05, 0.19) * k, Vector3(0, 0, -0.25))
+			for x in [0.06, 0.11, 0.16]:
+				_add_piece(torso, Vector3(0.03, 0.08, 0.03) * k, _material(Color(0.92, 0.9, 0.84)), Vector3(x + 0.04, 0.3, 0.19) * k)
+			_add_piece(torso, Vector3(0.03, 0.75, 0.03) * k, leather, Vector3(-0.05, 0.0, 0.16) * k, Vector3(0, 0, 0.6))
+		"swordsman":
+			# A steel kettle hat, shoulder plates and a sword at the hip.
+			_add_piece(head, Vector3(0.44, 0.03, 0.44) * k, steel, Vector3(0, 0.13, 0) * k)
+			_add_piece(head, Vector3(0.3, 0.12, 0.3) * k, steel, Vector3(0, 0.2, 0) * k)
+			for side in ["_l", "_r"]:
+				var arm: Node3D = _find_part("upper_arm" + side)["mesh"]
+				_add_piece(arm, Vector3(0.17, 0.1, 0.17) * k, steel, Vector3(0, 0.12, 0) * k)
+			_add_piece(torso, Vector3(0.08, 0.5, 0.02) * k, _material(Color(0.9, 0.85, 0.75)), Vector3(0, 0, -0.135) * k)
+			_add_piece(pelvis, Vector3(0.05, 0.55, 0.06) * k, leather, Vector3(-0.22, -0.2, -0.04) * k, Vector3(0, 0, -0.2))
+			_add_piece(pelvis, Vector3(0.16, 0.03, 0.04) * k, steel, Vector3(-0.17, 0.08, -0.04) * k, Vector3(0, 0, -0.2))
+		"rider":
+			# A steel helmet with a plume, and the horse.
+			_add_piece(head, Vector3(0.32, 0.12, 0.32) * k, steel, Vector3(0, 0.17, 0) * k)
+			_add_piece(head, Vector3(0.05, 0.2, 0.22) * k, _material(Color(0.85, 0.2, 0.18)), Vector3(0, 0.3, 0.04) * k)
+			_build_horse()
+
+
+## A rider's horse, under its own pivot on the body. Low-poly boxes facing -Z.
+func _build_horse() -> void:
+	var k := size_scale
+	var coat := _body_material(Config.HORSE_COLOR)
+	var dark := _body_material(Config.HORSE_COLOR.darkened(0.45))
+	for material in [coat, dark]:
+		_body_materials[material] = Art.get_color(material)
+	var saddle := _material(Color(0.36, 0.2, 0.12))
+	_horse = Node3D.new()
+	_horse.name = "Horse"
+	_body.add_child(_horse)
+	_add_piece(_horse, Vector3(0.5, 0.5, 1.3) * k, coat, Vector3(0, 1.05, 0) * k)
+	_add_piece(_horse, Vector3(0.54, 0.08, 0.5) * k, saddle, Vector3(0, 1.33, 0.02) * k)
+	_add_piece(_horse, Vector3(0.24, 0.6, 0.28) * k, coat, Vector3(0, 1.42, -0.62) * k, Vector3(-0.5, 0, 0))
+	_add_piece(_horse, Vector3(0.22, 0.24, 0.48) * k, coat, Vector3(0, 1.68, -0.88) * k, Vector3(0.25, 0, 0))
+	_add_piece(_horse, Vector3(0.06, 0.5, 0.12) * k, dark, Vector3(0, 1.5, -0.5) * k, Vector3(-0.5, 0, 0))
+	for x in [-0.07, 0.07]:
+		_add_piece(_horse, Vector3(0.05, 0.1, 0.04) * k, coat, Vector3(x, 1.84, -0.74) * k)
+	_add_piece(_horse, Vector3(0.08, 0.45, 0.08) * k, dark, Vector3(0, 0.95, 0.72) * k, Vector3(0.45, 0, 0))
+	for corner in [Vector3(-0.17, 0, -0.5), Vector3(0.17, 0, -0.5), Vector3(-0.17, 0, 0.5), Vector3(0.17, 0, 0.5)]:
+		var leg := Node3D.new()
+		leg.position = (corner + Vector3(0, 0.85, 0)) * k
+		_horse.add_child(leg)
+		_add_piece(leg, Vector3(0.13, 0.78, 0.13) * k, coat, Vector3(0, -0.39, 0) * k)
+		_add_piece(leg, Vector3(0.15, 0.08, 0.16) * k, dark, Vector3(0, -0.8, 0) * k)
+		_horse_legs.append(leg)
+
+
+## The rider is beaten: its horse trots off and disappears.
+func _send_horse_away() -> void:
+	if not is_instance_valid(_horse):
+		return
+	var horse := _horse
+	_horse = null
+	Fx.dust(horse.global_position, true)
+	var away := horse.create_tween()
+	away.tween_interval(0.6)
+	away.tween_property(horse, "scale", Vector3.ONE * 0.01, 0.6)
+	away.tween_callback(horse.queue_free)
+
+
+# --- Bandits (D-2 to D-5) ------------------------------------------------------------
+
+## Takes materials from the knight and runs. False if he had nothing to steal.
+func _steal() -> bool:
+	var inventory = get_tree().get_first_node_in_group("inventory")
+	if inventory == null:
+		return false
+	var taken: Dictionary = inventory.steal(Config.BANDIT_STEAL_AMOUNT)
+	if taken.is_empty():
+		return false
+	_stolen = taken
+	_has_stolen = true
+	_fleeing = true
+	WorldTime.bump()
+	# A sack on its back, and a THIEF marker that shows through trees.
+	var torso: Node3D = _find_part("torso")["mesh"]
+	var sack := SphereMesh.new()
+	sack.radius = 0.2 * size_scale
+	sack.height = 0.36 * size_scale
+	sack.radial_segments = 6
+	sack.rings = 3
+	sack.material = _material(Color(0.62, 0.5, 0.32))
+	var sack_mesh := MeshInstance3D.new()
+	sack_mesh.mesh = sack
+	sack_mesh.position = Vector3(0, 0.08, 0.24) * size_scale
+	torso.add_child(sack_mesh)
+	_thief_marker = Label3D.new()
+	_thief_marker.text = "THIEF"
+	_thief_marker.font_size = 40
+	_thief_marker.outline_size = 10
+	_thief_marker.modulate = Color(1.0, 0.3, 0.2)
+	_thief_marker.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_thief_marker.no_depth_test = true
+	_thief_marker.fixed_size = true
+	_thief_marker.pixel_size = 0.0012
+	_thief_marker.position = Vector3.UP * 2.3 * size_scale
+	add_child(_thief_marker)
+	var parts: Array[String] = []
+	for id in taken:
+		parts.append("%d %s" % [taken[id], String(Config.MATERIAL_NAMES[id]).to_lower()])
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud != null:
+		hud.show_alert("Stolen! A bandit took %s" % ", ".join(parts))
+	return true
+
+
+## Runs straight for the nearest edge of the map (away from the middle).
+func _flee(delta: float) -> void:
+	var out := Vector3(global_position.x, 0.0, global_position.z)
+	if out.length() >= Config.BANDIT_ESCAPE_RADIUS:
+		_escape()
+		return
+	var direction := out.normalized() if out.length_squared() > 0.01 else Vector3.FORWARD
+	if _detour_time > 0.0:
+		_detour_time -= delta
+		direction = direction.rotated(Vector3.UP, _detour_side * 1.2)
+	var speed := walk_speed * Config.BANDIT_FLEE_SPEED * (_slow_factor if _slow_left > 0.0 else 1.0)
+	velocity.x = direction.x * speed
+	velocity.z = direction.z * speed
+	_apply_gravity(delta)
+	var before := global_position
+	move_and_slide()
+	var moved_speed := (global_position - before).length() / maxf(delta, 0.0001)
+	_stuck_time = _stuck_time + delta if moved_speed < speed * 0.3 else 0.0
+	if _stuck_time > 0.5:
+		_stuck_time = 0.0
+		_detour_time = 1.0
+		_detour_side = -1.0 if randf() < 0.5 else 1.0
+	_turn_towards(direction, delta)
+	_animate_walk(delta, 1.0)
+
+
+## D-4: the thief reached the edge of the map and is gone, with what it stole.
+func _escape() -> void:
+	escaped = true
+	_stolen.clear()
+	_start(State.DEFEATED)
+	_fell_apart = true
+	remove_from_group("dummies")
+	set_physics_process(false)
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud != null:
+		hud.show_toast("A bandit got away with your materials!")
+	defeated.emit()
+	var vanish := create_tween()
+	vanish.tween_property(_body, "scale", Vector3.ONE * 0.01, 0.4)
+	vanish.tween_callback(queue_free)
+
+
 ## A small detail box (eyes, straw, belt). Beyond LOD_DETAIL_DISTANCE these are
 ## hidden, so far-away dummies are simpler (F-2); the big boss keeps every detail.
 func _add_box(parent: Node3D, size: Vector3, material: Material, at: Vector3, tilt := 0.0) -> void:
@@ -843,6 +1082,20 @@ func _add_box(parent: Node3D, size: Vector3, material: Material, at: Vector3, ti
 	mesh.mesh = box
 	mesh.transform = Transform3D(Basis(Vector3.BACK, tilt), at)
 	_detail_lod(mesh)
+	parent.add_child(mesh)
+
+
+## A piece of clothing or gear: a box turned by `turn` (Euler angles). Small
+## pieces disappear far away, like the other details (F-2).
+func _add_piece(parent: Node3D, size: Vector3, material: Material, at: Vector3, turn := Vector3.ZERO) -> void:
+	var box := BoxMesh.new()
+	box.size = size
+	box.material = material
+	var mesh := MeshInstance3D.new()
+	mesh.mesh = box
+	mesh.transform = Transform3D(Basis.from_euler(turn), at)
+	if size.length() < 0.25 * size_scale:
+		_detail_lod(mesh)
 	parent.add_child(mesh)
 
 

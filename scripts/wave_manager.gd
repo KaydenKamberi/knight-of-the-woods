@@ -83,6 +83,8 @@ var _boss_delay_left := 0.0
 var _spawn_points: Array[Vector3] = []
 var _rng := RandomNumberGenerator.new()
 var _crafting_was_available := false
+## The regular enemies' looks (D-1), shuffled and dealt out in turn so every wave mixes them.
+var _looks: Array = []
 # Wave 20: the groups still to come (each a list of "dummy", "big" or a mini boss's wave
 # number), what's queued to walk in now, how many are left, and how long since the last group.
 var _final_groups: Array = []
@@ -204,13 +206,24 @@ func _start_wave(number: int) -> void:
 func _spawn_dummy() -> void:
 	_to_spawn -= 1
 	var dummy = DUMMY_SCENE.instantiate()
+	dummy.look = _next_look()
 	dummy.position = _pick_spawn_point()
-	dummy.defeated.connect(_on_dummy_defeated)
+	dummy.defeated.connect(_on_dummy_defeated.bind(dummy))
 	_enemies.add_child(dummy)
 
 
-func _on_dummy_defeated() -> void:
-	_enemies_defeated += 1
+## The next regular enemy look: bandit, archer, swordsman or rider (D-1).
+func _next_look() -> String:
+	if _looks.is_empty():
+		_looks = Config.ENEMY_LOOKS.duplicate()
+		_looks.shuffle()
+	return _looks.pop_back()
+
+
+func _on_dummy_defeated(dummy) -> void:
+	# A bandit that got away still counts towards clearing the wave, but not as defeated.
+	if not dummy.escaped:
+		_enemies_defeated += 1
 	_dummies_left -= 1
 	dummies_left_changed.emit(_dummies_left)
 	if _dummies_left <= 0 and phase == Phase.DUMMIES:
@@ -321,6 +334,8 @@ func _spawn_final_enemy(kind) -> void:
 		big_boss_health_changed.emit(info["health"], info["health"])
 	elif kind is int:
 		enemy.configure_mini_boss(MiniBosses.info(kind))
+	else:
+		enemy.look = _next_look()
 	enemy.position = _pick_spawn_point()
 	enemy.defeated.connect(_on_final_enemy_defeated.bind(enemy))
 	_enemies.add_child(enemy)
@@ -328,7 +343,8 @@ func _spawn_final_enemy(kind) -> void:
 
 
 func _on_final_enemy_defeated(enemy) -> void:
-	_enemies_defeated += 1
+	if not enemy.escaped:
+		_enemies_defeated += 1
 	if enemy.is_mini_boss and not enemy.is_big_boss:
 		_mini_bosses_defeated += 1
 	_final_alive -= 1

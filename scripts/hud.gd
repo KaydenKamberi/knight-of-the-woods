@@ -486,7 +486,7 @@ func on_dummies_left_changed(count: int) -> void:
 	if _final_wave:
 		_enemies_label.text = "Enemies left: %d" % count
 	elif count > 0:
-		_enemies_label.text = "Dummies left: %d" % count
+		_enemies_label.text = "Enemies left: %d" % count
 	else:
 		_enemies_label.text = "The mini boss is coming..."
 
@@ -591,9 +591,15 @@ func _on_quit_pressed() -> void:
 	get_tree().quit()
 
 
+## A red warning across the middle of the screen (a bandit's theft, D-2).
+func show_alert(text: String) -> void:
+	_show_banner(text, Color(1.0, 0.42, 0.32))
+
+
 ## Shows big text in the middle of the screen for a couple of seconds.
-func _show_banner(text: String) -> void:
+func _show_banner(text: String, tint := Color.WHITE) -> void:
 	_banner.text = text
+	_banner.self_modulate = tint
 	if _banner_tween:
 		_banner_tween.kill()
 	_banner.modulate.a = 0.0

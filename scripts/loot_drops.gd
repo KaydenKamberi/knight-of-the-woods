@@ -20,6 +20,19 @@ static func drop_from(enemy: Node3D, is_mini_boss: bool) -> void:
 		for i in randi_range(Config.DUMMY_DROPS_MIN, Config.DUMMY_DROPS_MAX):
 			drops.append(random_material())
 
+	_spawn(enemy, drops)
+
+
+## Drops `items` (e.g. {"wood": 2}) from `enemy`: what a killed bandit stole (D-3).
+static func drop_items(enemy: Node3D, items: Dictionary) -> void:
+	var drops: Array[String] = []
+	for id in items:
+		for i in int(items[id]):
+			drops.append(id)
+	_spawn(enemy, drops)
+
+
+static func _spawn(enemy: Node3D, drops: Array[String]) -> void:
 	var scene_root := enemy.get_tree().current_scene
 	var origin := enemy.global_position + Vector3.UP
 	for id in drops:
