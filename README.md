@@ -8,7 +8,7 @@ The full design is in `Knight of the Still Woods — PRD.md`.
 
 | Folder | What goes in it |
 | --- | --- |
-| `scenes/` | Godot scenes (`.tscn`). `scenes/test_scene.tscn` is the current main scene. |
+| `scenes/` | Godot scenes (`.tscn`). `scenes/forest.tscn` is the main scene. `scenes/test_scene.tscn` is the M0 spinning-cube check. |
 | `scripts/` | GDScript files (`.gd`). |
 | `assets/models/` | 3D models (for example CC0 packs from Kenney, Quaternius, Poly Pizza). |
 | `assets/textures/` | Textures and images. |
@@ -21,7 +21,27 @@ The full design is in `Knight of the Still Woods — PRD.md`.
 1. Download **Godot 4.7.x (standard)** from <https://godotengine.org/download>.
 2. Start Godot. In the Project Manager, click **Import**, pick this repo's `project.godot`, then click **Import & Edit**.
 3. The first time it opens, Godot imports the files and creates a `.godot/` cache folder (ignored by git).
-4. Press **F5** (or the ▶ Play button). You should see a red cube spinning on a green ground.
+4. Press **F5** (or the ▶ Play button). The knight starts in a clearing in the middle of the forest.
+
+## Controls
+
+| Action | PC | Phone / tablet |
+| --- | --- | --- |
+| Move | WASD or arrow keys | Joystick: put your thumb anywhere on the left half of the screen |
+| Look around | Mouse (click the game first to capture the mouse) | Drag on the right half of the screen |
+| Switch view (behind the knight / inside the helmet) | V | Camera icon, top right |
+| Free the mouse | Esc | — |
+
+Touch controls appear automatically on touch screens and stay hidden on PC.
+If a PC has a touch screen, the last thing you used wins: touching the screen shows them, and typing or clicking a mouse hides them.
+
+## What's in the game so far
+
+- **`scenes/forest.tscn`**: the main scene. Sky, sunlight, ground, the forest, the knight and the HUD.
+- **`scripts/forest.gd`**: builds the low-poly forest in code. Pines, leafy trees, rocks and bushes surround an open clearing, inside a thick ring of trees with an invisible wall so you can't walk out. Change the settings on the `Trees` node in the Inspector (seed, sizes, counts), then press **Rebuild Forest**. The forest is drawn in the editor too.
+- **`scenes/knight.tscn`** + **`scripts/knight.gd`**: the knight, built from simple low-poly shapes, with walking, camera look and the view switch. Speed, mouse and touch sensitivity, and camera distance can be changed on the `Knight` node in the Inspector.
+- **`ui/hud.tscn`** + **`scripts/hud.gd`** + **`scripts/touch_controls.gd`**: the on-screen joystick, drag-to-look, camera icon, and the PC controls hint.
+- **`ui/helmet_eye_slit.gdshader`**: the dark helmet edges and eye slit shown in first person.
 
 ## Install export templates first
 
