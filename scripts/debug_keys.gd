@@ -7,8 +7,8 @@ extends Node
 ## - F6: jump straight to wave 20, the final battle.
 ## - F7: get 20 stone, 10 coal, 10 raw iron and 2 Cryo Crystals (to test the
 ##   furnace, and the Cryo armour after smelting 3 iron).
-## - F8: get a pile of everything (10 of each regular material, 5 iron, 4 Cryo
-##   Crystals, 1 Ultra Crystal) to test crafting.
+## - F8: get a pile of everything (10 of each regular material, 10 gunpowder,
+##   5 iron, 4 Cryo Crystals, 1 Ultra Crystal, 3 meat and 3 berries) to test crafting.
 ## - F9: let crafting and smelting open at any time (press again to turn off).
 ##
 ## The wave shortcuts live on the WaveManager: F2 skips to the next wave, F3
@@ -33,7 +33,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_give({"stone": 20, "coal": 10, "raw_iron": 10, "cryo": 2})
 		KEY_F8:
 			_give({"wood": 10, "stone": 10, "raw_iron": 10, "coal": 10, "string": 10,
-					"iron": 5, "cryo": 4, "ultra": 1})
+					"iron": 5, "cryo": 4, "ultra": 1, "gunpowder": 10, "meat": 3, "berries": 3})
 		KEY_F9:
 			var waves = get_tree().get_first_node_in_group("wave_manager")
 			if waves != null:

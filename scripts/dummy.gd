@@ -84,6 +84,8 @@ var state := State.WALKING
 var is_mini_boss := false
 var is_big_boss := false
 var boss_name := ""
+## The wave a mini boss belongs to (grenades take 1 / (wave × 2) of its health, G-3).
+var boss_wave := 0
 
 ## What it's walking at: the knight or a soldier (anything in the "dummy_targets" group).
 var _target = null
@@ -137,6 +139,7 @@ func _ready() -> void:
 func configure_mini_boss(info: Dictionary) -> void:
 	is_mini_boss = true
 	boss_name = info["name"]
+	boss_wave = info.get("wave", 1)
 	size_scale = info["size"]
 	cloth_color = info["color"]
 	headgear = info["headgear"]

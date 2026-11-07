@@ -30,6 +30,9 @@ const DESCRIPTIONS := {
 	"cryo_dagger": "30 damage · a slash freezes the head; the next hit shatters it",
 	"cryo_hammer": "100 damage · slowest · right click slam (once a wave) · F spin",
 	"ultra_blaster": "1,000 damage · exploding shots · 3 uses, then it breaks",
+	"dagger": "20 damage · very fast stabs",
+	"bat": "10 damage · knocks enemies far back",
+	"grenade": "Throw it: wipes out regular enemies in the blast · used up",
 	"cryo_armor": "Reflects 25% of melee damage and slows attackers",
 }
 
@@ -83,7 +86,7 @@ func refresh() -> void:
 	_materials_label.text = "  ·  ".join(parts)
 	for item in _rows:
 		var button: Button = _rows[item]
-		if _inventory.owns(item) and item != "ultra_blaster":
+		if _inventory.owns(item) and not (item in Config.REPEAT_CRAFTS):
 			# Armour is put on the moment it's crafted.
 			button.text = "Equipped" if item in ARMOUR else "Owned"
 			button.disabled = true

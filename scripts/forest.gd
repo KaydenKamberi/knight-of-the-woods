@@ -33,6 +33,7 @@ const BOUNDARY_LAYER := 4
 const Config := preload("res://scripts/game_config.gd")
 const Art := preload("res://scripts/art.gd")
 const GRASS_SHADER := preload("res://shaders/grass.gdshader")
+const BERRY_BUSH := preload("res://scripts/berry_bush.gd")
 
 @export var forest_seed := 7
 ## The open space in the middle (sandy, with the swinging log).
@@ -86,6 +87,9 @@ func rebuild() -> void:
 	_build_small_details()
 	_build_grass()
 	_build_edge_wall()
+	# Placed last, so the rest of the forest stays exactly as it was.
+	if not Engine.is_editor_hint():
+		_build_berry_bushes()
 
 
 ## The sandy clearing in the middle and the lane up to the castle gate.
@@ -196,6 +200,19 @@ func _build_bushes() -> void:
 		tints.append(_random_tint())
 	var leafy := Art.material(Color.WHITE, {"instance_color": true, "fade": true, "sway": 0.6})
 	_add_chunked("BerryBushes", _bush_mesh(), leafy, bushes, tints, "small")
+
+
+## Bushes with berries the knight can pick (N-4), in the play area.
+func _build_berry_bushes() -> void:
+	var holder := Node3D.new()
+	holder.name = "PickableBerryBushes"
+	_generated.add_child(holder)
+	for spot in _scatter(Config.BERRY_BUSH_COUNT, clearing_radius + 2.0, play_radius - 4.0, 0.9):
+		var bush := BERRY_BUSH.new()
+		holder.add_child(bush)
+		bush.position = spot
+		bush.rotation.y = _rng.randf() * TAU
+		bush.scale = Vector3.ONE * _rng.randf_range(0.9, 1.15)
 
 
 ## Flowers in three colours and small loose rocks, for detail.

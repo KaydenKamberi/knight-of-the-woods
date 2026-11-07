@@ -29,7 +29,11 @@ const PauseMenu := preload("res://scripts/pause_menu.gd")
 const ArmorIcon := preload("res://scripts/armor_icon.gd")
 const TITLE_SCENE := "res://scenes/title.tscn"
 const Config := preload("res://scripts/game_config.gd")
-const HOTBAR_SLOTS := 9
+## Enough slots for every weapon at once. Keys 1 to 9 pick the first nine.
+const HOTBAR_SLOTS := 16
+## A hotbar slot's widest and narrowest size; slots shrink when there are many.
+const SLOT_WIDTH_MAX := 96.0
+const SLOT_WIDTH_MIN := 62.0
 
 ## Show the "World time 5%" readout (handy while tuning the time mechanic).
 @export var show_world_time := true
@@ -355,13 +359,20 @@ func _update_hotbar() -> void:
 	if knight == null or knight.weapons == null:
 		return
 	var info: Array = knight.weapons.hotbar_info()
+	# Narrower slots when the hotbar is full, so it always fits on the screen.
+	var room := get_viewport().get_visible_rect().size.x - 40.0
+	var count := maxi(info.size(), 1)
+	var width := clampf(room / count - 6.0, SLOT_WIDTH_MIN, SLOT_WIDTH_MAX)
+	var font_size := 15 if width >= 86.0 else 12
 	for i in HOTBAR_SLOTS:
 		var slot := _hotbar_slots[i]
 		slot.visible = i < info.size()
 		if not slot.visible:
 			continue
 		var entry: Dictionary = info[i]
-		var text := "%d  %s" % [entry["key"], entry["name"]]
+		slot.custom_minimum_size.x = width
+		slot.add_theme_font_size_override("font_size", font_size)
+		var text: String = entry["name"] if entry["key"] == 0 else "%d  %s" % [entry["key"], entry["name"]]
 		if not String(entry["detail"]).is_empty():
 			text += "\n" + entry["detail"]
 		slot.text = text

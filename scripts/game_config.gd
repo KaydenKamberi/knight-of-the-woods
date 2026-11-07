@@ -151,13 +151,16 @@ const ARROW_SPEED := 30.0
 # --- Materials and loot (R-1, R-2, R-11, R-13) ------------------------------------
 
 ## Every material, in the order the HUD and crafting menu list them.
-const MATERIALS := ["wood", "stone", "raw_iron", "iron", "coal", "string", "cryo", "ultra"]
+const MATERIALS := ["wood", "stone", "raw_iron", "iron", "coal", "string", "gunpowder",
+		"cryo", "ultra", "meat", "berries"]
 const MATERIAL_NAMES := {
 	"wood": "Wood", "stone": "Stone", "raw_iron": "Raw iron", "iron": "Iron", "coal": "Coal",
 	"string": "String", "cryo": "Cryo Crystal", "ultra": "Ultra Crystal",
+	"gunpowder": "Gunpowder", "meat": "Meat", "berries": "Berries",
 }
-## What a regular dummy can drop, and how likely each is (bigger = more common).
-const DROP_WEIGHTS := {"wood": 3, "stone": 3, "raw_iron": 2, "coal": 2, "string": 1}
+## What a regular enemy can drop, and how likely each is (bigger = more common).
+## Gunpowder drops about as often as coal (N-2); meat is a taming food (N-4).
+const DROP_WEIGHTS := {"wood": 3, "stone": 3, "raw_iron": 2, "coal": 2, "gunpowder": 2, "string": 1, "meat": 1}
 ## A regular dummy drops between these many materials.
 const DUMMY_DROPS_MIN := 1
 const DUMMY_DROPS_MAX := 2
@@ -168,6 +171,10 @@ const MINI_BOSS_RANDOM_DROPS := 3
 const ULTRA_DROP_CHANCE := 0.05
 ## How close the knight has to walk to loot to pick it up, in metres.
 const LOOT_PICKUP_RANGE := 1.3
+## Berry bushes the knight can pick with E / Grab (N-4). Each gives this many
+## berries, then grows them back when a wave is cleared.
+const BERRY_BUSH_COUNT := 10
+const BERRIES_PER_BUSH := 2
 
 # --- Crafting (R-5 to R-14, weapon stats table) -----------------------------------
 
@@ -180,8 +187,13 @@ const RECIPES := {
 	"cryo_dagger": {"cryo": 1, "stone": 2, "string": 1},
 	"cryo_hammer": {"cryo": 2, "iron": 3},
 	"ultra_blaster": {"ultra": 1},
+	"dagger": {"stone": 1, "wood": 1},
+	"bat": {"wood": 2},
+	"grenade": {"gunpowder": 2, "iron": 1},
 	"cryo_armor": {"iron": 3, "stone": 3, "cryo": 2},
 }
+## Items that can be crafted again and again: each craft adds more uses.
+const REPEAT_CRAFTS := ["ultra_blaster", "grenade"]
 ## The furnace is built once, at its spot in the castle courtyard, and unlocks smelting (R-14).
 const FURNACE_COST := {"stone": 10}
 const SMELT_COST := {"raw_iron": 1, "coal": 1}
@@ -204,6 +216,9 @@ const WEAPONS := {
 	"cryo_dagger": {"name": "Cryo dagger", "kind": "melee", "damage": 30, "reach": 1.8, "cooldown": 0.4, "sweep": false},
 	"cryo_hammer": {"name": "Cryo hammer", "kind": "melee", "damage": 100, "reach": 2.3, "cooldown": 1.4, "sweep": true},
 	"ultra_blaster": {"name": "Ultra blaster", "kind": "blaster", "damage": 1000, "cooldown": 0.8},
+	"dagger": {"name": "Dagger", "kind": "melee", "damage": 20, "reach": 1.7, "cooldown": 0.3, "sweep": false},
+	"bat": {"name": "Bat", "kind": "melee", "damage": 10, "reach": 2.0, "cooldown": 0.45, "sweep": false, "push": 7.0},
+	"grenade": {"name": "Grenades", "kind": "grenade", "cooldown": 0.8},
 }
 ## Cryo dagger (R-8): a frozen head shatters on the next dagger hit and defeats a
 ## regular dummy. A mini boss takes this much damage instead (shattering one
@@ -222,6 +237,14 @@ const HAMMER_SPIN_COOLDOWN := 5.0
 ## Ultra blaster (R-12, R-17): shots per crafted blaster, and blast radius.
 const BLASTER_SHOTS := 3
 const BLASTER_BLAST_RADIUS := 4.0
+## Grenades (G-3): thrown in an arc, they explode where they land. Every regular
+## enemy in the blast is destroyed. A mini boss loses 1 / (its wave × 2) of its
+## health per grenade, so wave n's mini boss takes 2 × n grenades; the big boss
+## takes BIG_BOSS_GRENADES. They never hurt the knight, soldiers or tamed animals.
+const GRENADE_BLAST_RADIUS := 3.5
+const GRENADE_THROW_SPEED := 14.0
+const GRENADES_PER_WAVE_OF_BOSS := 2
+const BIG_BOSS_GRENADES := 40
 ## Cryo armour (R-10): share of melee damage reflected, and how much the attacker slows and for how long.
 const ARMOR_REFLECT := 0.25
 const ARMOR_SLOW := 0.5

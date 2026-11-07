@@ -6,6 +6,7 @@ extends Node
 ## - weapons: crafted weapons, in the order they joined the hotbar (knives are
 ##   always slot 1 and aren't listed here).
 ## - blaster_shots: Ultra blaster shots left. The blaster leaves the hotbar at 0.
+## - grenades: grenades left (G-3). They leave the hotbar at 0.
 ## - has_armor: whether Cryo armour is on.
 ## - furnace_built: whether the furnace in the courtyard exists, which unlocks smelting.
 ##
@@ -21,6 +22,7 @@ const Config := preload("res://scripts/game_config.gd")
 var materials := {}
 var weapons: Array[String] = []
 var blaster_shots := 0
+var grenades := 0
 var has_armor := false
 var furnace_built := false
 
@@ -50,8 +52,8 @@ func can_craft(item: String) -> bool:
 		return false
 	if item == "cryo_armor":
 		return not has_armor
-	if item == "ultra_blaster":
-		return true  # More blasters just add shots.
+	if item in Config.REPEAT_CRAFTS:
+		return true  # More blasters add shots, more grenades add grenades.
 	return not weapons.has(item)  # Other weapons never break, so one is enough.
 
 
@@ -69,6 +71,10 @@ func craft(item: String) -> bool:
 		has_armor = true
 	elif item == "ultra_blaster":
 		blaster_shots += Config.BLASTER_SHOTS
+		if not weapons.has(item):
+			weapons.append(item)
+	elif item == "grenade":
+		grenades += 1
 		if not weapons.has(item):
 			weapons.append(item)
 	else:
@@ -108,6 +114,23 @@ func use_blaster_shot() -> void:
 	if blaster_shots == 0:
 		weapons.erase("ultra_blaster")
 	changed.emit()
+
+
+## Uses one grenade. The last one takes grenades off the hotbar (G-3).
+func use_grenade() -> void:
+	grenades = maxi(grenades - 1, 0)
+	if grenades == 0:
+		weapons.erase("grenade")
+	changed.emit()
+
+
+## Uses up `amount` of a material (taming food, for example). False if there isn't enough.
+func spend(material: String, amount := 1) -> bool:
+	if materials.get(material, 0) < amount:
+		return false
+	materials[material] -= amount
+	changed.emit()
+	return true
 
 
 ## A short "3 wood + 2 stone" description of a cost.

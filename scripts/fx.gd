@@ -1,6 +1,6 @@
 extends RefCounted
 ## Particle effects (M7, 1E): dust, hit sparks, frost, ice, the blaster's trail
-## and explosion, and furnace sparks.
+## and explosion, grenade blasts, and furnace sparks.
 ##
 ## All of them are CPUParticles3D, which run on the normal (world-time) delta,
 ## so every effect slows down when world time does (T-3), and they work the same
@@ -71,6 +71,15 @@ static func explosion(at: Vector3, radius: float, scene_root: Node) -> void:
 	Effects.burst(at, radius, ULTRA, scene_root)
 	_burst("explosion", at, {"amount": 40, "life": 0.9, "speed": Vector2(5.0, 11.0),
 			"gravity": -6.0, "color": Color(1.0, 0.8, 1.0), "size": 0.12})
+
+
+## A grenade going off: an orange fireball, sparks and a puff of smoke.
+static func grenade_blast(at: Vector3, radius: float, scene_root: Node) -> void:
+	Effects.burst(at, radius, Color(1.0, 0.55, 0.15), scene_root)
+	_burst("grenade", at, {"amount": 34, "life": 0.8, "speed": Vector2(4.0, 9.0),
+			"gravity": -7.0, "color": Color(1.0, 0.75, 0.3), "size": 0.1})
+	_burst("smoke", at + Vector3.UP * 0.4, {"amount": 14, "life": 1.3, "speed": Vector2(0.8, 2.0),
+			"gravity": 0.6, "spread": 70.0, "color": Color(0.35, 0.33, 0.3, 0.7), "size": 0.32, "fade": true})
 
 
 static func furnace_sparks(at: Vector3) -> void:

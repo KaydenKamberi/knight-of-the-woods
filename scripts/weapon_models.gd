@@ -42,6 +42,26 @@ static func build(weapon: String, layer: int) -> Node3D:
 		"cryo_hammer":
 			_box(root, Vector3(0.05, 0.05, 0.95), WOOD, Vector3(0, 0, -0.35))
 			_box(root, Vector3(0.3, 0.22, 0.24), ICE, Vector3(0, 0, -0.85), true, true)
+		"dagger":
+			_box(root, Vector3(0.03, 0.03, 0.1), WOOD, Vector3(0, 0, 0.04))
+			_box(root, Vector3(0.11, 0.025, 0.03), DARK, Vector3(0, 0, -0.02))
+			_box(root, Vector3(0.04, 0.012, 0.26), STEEL, Vector3(0, 0, -0.16), true)
+		"bat":
+			_box(root, Vector3(0.05, 0.05, 0.3), WOOD.darkened(0.2), Vector3(0, 0, -0.05))
+			_box(root, Vector3(0.08, 0.08, 0.35), WOOD, Vector3(0, 0, -0.36))
+			_box(root, Vector3(0.11, 0.11, 0.3), WOOD.lightened(0.08), Vector3(0, 0, -0.66))
+		"grenade":
+			var ball := SphereMesh.new()
+			ball.radius = 0.1
+			ball.height = 0.18
+			ball.radial_segments = 8
+			ball.rings = 4
+			ball.material = _material(Color(0.22, 0.24, 0.2), true, false)
+			var ball_mesh := MeshInstance3D.new()
+			ball_mesh.mesh = ball
+			ball_mesh.position = Vector3(0, 0, -0.08)
+			root.add_child(ball_mesh)
+			_box(root, Vector3(0.04, 0.07, 0.04), Color(1.0, 0.6, 0.2), Vector3(0, 0.1, -0.08), false, true)
 		"ultra_blaster":
 			var tube := CylinderMesh.new()
 			tube.top_radius = 0.07

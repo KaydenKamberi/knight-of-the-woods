@@ -97,6 +97,38 @@ func _build_model() -> void:
 			_add(spool, Color(0.92, 0.88, 0.76), Basis(Vector3.RIGHT, PI / 2.0))
 		"cryo":
 			_add_crystal(Color(0.55, 0.85, 1.0), 0.22)
+		"gunpowder":
+			# A small black pouch tied at the top.
+			_add(_rock(0.12), Color(0.18, 0.17, 0.17))
+			var tie := BoxMesh.new()
+			tie.size = Vector3(0.07, 0.07, 0.07)
+			_add(tie, Color(0.8, 0.7, 0.45), Basis.IDENTITY, 0.0, Vector3(0, 0.14, 0))
+		"meat":
+			# A drumstick: a meaty lump on a bone.
+			var lump := SphereMesh.new()
+			lump.radius = 0.11
+			lump.height = 0.2
+			lump.radial_segments = 6
+			lump.rings = 3
+			_add(lump, Color(0.72, 0.28, 0.22), Basis.from_scale(Vector3(1.0, 0.85, 1.25)))
+			var bone := BoxMesh.new()
+			bone.size = Vector3(0.05, 0.05, 0.18)
+			_add(bone, Color(0.95, 0.92, 0.84), Basis.IDENTITY, 0.0, Vector3(0, 0, 0.17))
+		"berries":
+			for i in 3:
+				var berry := SphereMesh.new()
+				berry.radius = 0.06
+				berry.height = 0.12
+				berry.radial_segments = 6
+				berry.rings = 3
+				var angle := TAU * i / 3.0
+				_add(berry, Config.PALETTE["berry"], Basis.IDENTITY, 0.0, Vector3(cos(angle), 0.0, sin(angle)) * 0.06)
+		"diamond":
+			_add_crystal(Color(0.85, 0.97, 1.0), 0.26)
+		"titanium":
+			var ingot := BoxMesh.new()
+			ingot.size = Vector3(0.26, 0.08, 0.12)
+			_add(ingot, Color(0.62, 0.68, 0.78), Basis.IDENTITY, 0.8)
 		"ultra":
 			_add_crystal(Color(0.8, 0.35, 1.0), 0.3)
 			var light := OmniLight3D.new()

@@ -14,6 +14,8 @@ extends Node
 ##   once per wave (R-6); F / Spin hits everyone around the knight, with a
 ##   cooldown (R-9, R-16)
 ## - Ultra blaster: lob an exploding round; 3 shots, then it breaks (R-12)
+## - dagger and bat: quick melee swings; the bat knocks enemies back hard
+## - grenades: throw one in an arc; it's used up (G-3)
 ##
 ## Damage and timings come from game_config.gd. Cooldowns run on world time,
 ## and every attack gives world time a short bump (T-2).
@@ -28,6 +30,7 @@ const Fx := preload("res://scripts/fx.gd")
 const ARROW_SCENE := preload("res://scenes/arrow.tscn")
 const Pool := preload("res://scripts/pool.gd")
 const BLASTER_ROUND := preload("res://scripts/blaster_round.gd")
+const GRENADE := preload("res://scripts/grenade.gd")
 const ICE := Color(0.55, 0.85, 1.0)
 ## A melee target has to be within this angle of where the knight is aiming (as a dot product).
 const MELEE_ARC := 0.35
@@ -97,10 +100,13 @@ func hotbar_info() -> Array[Dictionary]:
 				detail = "%d / %d" % [_knight.knives, _knight.max_knives]
 			"ultra_blaster":
 				detail = "%d shots" % _inventory.blaster_shots
+			"grenade":
+				detail = "%d left" % _inventory.grenades
 			"cryo_hammer":
 				var spin := "ready" if _spin_cooldown_left == 0.0 else "%ds" % ceili(_spin_cooldown_left)
 				detail = "spin %s · slam %s" % [spin, "ready" if slam_ready else "used"]
-		info.append({"key": i + 1, "name": Config.WEAPONS[id]["name"], "detail": detail, "selected": i == selected})
+		# Keys 1 to 9 pick the first nine slots; the mouse wheel reaches the rest.
+		info.append({"key": i + 1 if i < 9 else 0, "name": Config.WEAPONS[id]["name"], "detail": detail, "selected": i == selected})
 	return info
 
 
@@ -127,6 +133,8 @@ func attack() -> void:
 			_shoot_arrow(stats)
 		"blaster":
 			_fire_blaster()
+		"grenade":
+			_throw_grenade()
 	_cooldown_left = stats["cooldown"]
 
 
@@ -198,7 +206,7 @@ func _melee(id: String, stats: Dictionary) -> void:
 			if enemy.is_alive():
 				enemy.freeze_head()
 		else:
-			enemy.take_hit(damage, origin, 4.0 if id != "sword" else 3.0)
+			enemy.take_hit(damage, origin, stats.get("push", 4.0 if id != "sword" else 3.0))
 
 
 func _shoot_arrow(stats: Dictionary) -> void:
@@ -224,6 +232,20 @@ func _fire_blaster() -> void:
 	# Lobbed like a grenade: forward and a little up.
 	round_node.launch(start, direction * 20.0 + Vector3.UP * 3.0)
 	_inventory.use_blaster_shot()
+
+
+func _throw_grenade() -> void:
+	if _inventory == null or _inventory.grenades <= 0:
+		return
+	WorldTime.bump()
+	_knight.play_swing()
+	var start: Vector3 = _knight.throw_start()
+	var direction: Vector3 = _knight.throw_direction(start)
+	var grenade = GRENADE.new()
+	get_tree().current_scene.add_child(grenade)
+	# Thrown in an arc: forward and up.
+	grenade.launch(start, direction * Config.GRENADE_THROW_SPEED + Vector3.UP * 4.0)
+	_inventory.use_grenade()
 
 
 func _enemies_within(center: Vector3, radius: float) -> Array:
