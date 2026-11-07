@@ -1,0 +1,15 @@
+# Godot 4 cache and imported files (rebuilt automatically when the project opens)
+.godot/
+
+# Export builds. Only the empty .gitkeep files are tracked, so the
+# builds/windows/ and builds/web/ folders exist for the export presets.
+/builds/**
+!/builds/*/
+!/builds/*/.gitkeep
+
+# Temporary files
+*.tmp
+
+# OS clutter
+.DS_Store
+Thumbs.db
