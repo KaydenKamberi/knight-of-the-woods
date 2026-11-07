@@ -231,9 +231,12 @@ func _flash() -> void:
 		material.emission = Color(0.8, 0.1, 0.1)
 	var clear := create_tween()
 	clear.tween_interval(0.12)
-	clear.tween_callback(func() -> void:
-		for material in _materials:
-			material.emission_enabled = false)
+	clear.tween_callback(_clear_emission)
+
+
+func _clear_emission() -> void:
+	for material in _materials:
+		material.emission_enabled = false
 
 
 # --- Building the model (low-poly boxes, facing -Z) --------------------------------

@@ -65,6 +65,7 @@ var _selected_style: StyleBoxFlat
 @onready var _materials_label: Label = $Status/MaterialsLabel
 @onready var _craft_hint: Label = $WaveInfo/CraftHint
 @onready var _hotbar: HBoxContainer = $Hotbar
+@onready var _status: Control = $Status
 
 
 func _ready() -> void:
@@ -152,6 +153,8 @@ func open_crafting() -> void:
 	_crafting_menu.open()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_touch_controls.visible = false
+	# The stats panel would sit under the menu, so hide it while crafting.
+	_status.visible = false
 	crafting_menu_toggled.emit(true)
 
 
@@ -159,6 +162,7 @@ func close_crafting() -> void:
 	if not _crafting_menu.visible:
 		return
 	_crafting_menu.visible = false
+	_status.visible = true
 	_touch_controls.visible = touch_mode and not _game_over.visible
 	crafting_menu_toggled.emit(false)
 
@@ -178,9 +182,12 @@ func _watch_inventory() -> void:
 	if inventory == null:
 		return
 	inventory.changed.connect(func() -> void: _update_materials(inventory))
-	inventory.item_added.connect(func(material: String, amount: int) -> void:
-		show_toast("+%d %s" % [amount, Config.MATERIAL_NAMES.get(material, material)]))
+	inventory.item_added.connect(_on_item_added)
 	_update_materials(inventory)
+
+
+func _on_item_added(material: String, amount: int) -> void:
+	show_toast("+%d %s" % [amount, Config.MATERIAL_NAMES.get(material, material)])
 
 
 ## The materials the knight carries, under the health bar (only the ones he has).

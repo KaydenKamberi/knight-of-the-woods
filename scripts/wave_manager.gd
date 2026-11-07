@@ -178,12 +178,15 @@ func _spawn_mini_boss() -> void:
 	boss.configure_mini_boss(info)
 	boss.position = _pick_spawn_point()
 	boss.defeated.connect(_on_mini_boss_defeated)
-	boss.health_changed.connect(
-			func(health: int, max_health: int) -> void: mini_boss_health_changed.emit(health, max_health))
+	boss.health_changed.connect(_on_mini_boss_health_changed)
 	_enemies.add_child(boss)
 	phase = Phase.MINI_BOSS
 	mini_boss_appeared.emit(info["name"])
 	mini_boss_health_changed.emit(info["health"], info["health"])
+
+
+func _on_mini_boss_health_changed(health: int, max_health: int) -> void:
+	mini_boss_health_changed.emit(health, max_health)
 
 
 func _on_mini_boss_defeated() -> void:

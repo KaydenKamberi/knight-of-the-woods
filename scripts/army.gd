@@ -41,6 +41,16 @@ func on_knight_health_changed(health: int, max_health: int) -> void:
 		_send_rescue()
 
 
+## True while a wave is being fought (rescues only happen then).
+func is_wave_running() -> bool:
+	return _wave_running
+
+
+## True once this wave's rescue has been sent.
+func has_rescued_this_wave() -> bool:
+	return _rescued_this_wave
+
+
 func on_wave_started(_wave: int, _last_wave: int) -> void:
 	_wave_running = true
 	_rescued_this_wave = false
@@ -102,7 +112,8 @@ func _on_soldier_died(soldier: Node) -> void:
 ## A clear spot around the knight, spread evenly between the rescuers.
 func _spawn_spot(center: Vector3, index: int, count: int) -> Vector3:
 	var base_angle := randf() * TAU
-	var space := get_tree().current_scene.get_world_3d().direct_space_state
+	# current_scene is only typed as Node, so cast it to reach the 3D world.
+	var space: PhysicsDirectSpaceState3D = (get_tree().current_scene as Node3D).get_world_3d().direct_space_state
 	var probe := SphereShape3D.new()
 	probe.radius = 0.5
 	var query := PhysicsShapeQueryParameters3D.new()

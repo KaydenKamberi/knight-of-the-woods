@@ -5,6 +5,9 @@ extends Control
 ## One row per recipe from game_config.gd with its cost and a Craft button,
 ## then the furnace (built once) and smelting (1 raw iron + 1 coal = 1 iron)
 ## once the furnace exists. Rows update whenever the inventory changes.
+##
+## The panel is sized from the screen (80% wide, 88% tall, centred), and every
+## description and cost wraps, so a row can never be wider than the panel.
 
 signal close_requested
 
@@ -73,16 +76,23 @@ func _connect_inventory() -> void:
 
 func _build() -> void:
 	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.55)
+	dim.color = Color(0.02, 0.02, 0.03, 0.85)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
 
+	# Sized from the screen, not fixed pixels: 10% margin left and right, 6% top and bottom.
 	var panel := PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.offset_left = -430.0
-	panel.offset_top = -310.0
-	panel.offset_right = 430.0
-	panel.offset_bottom = 310.0
+	panel.anchor_left = 0.1
+	panel.anchor_right = 0.9
+	panel.anchor_top = 0.06
+	panel.anchor_bottom = 0.94
+	panel.offset_left = 0.0
+	panel.offset_right = 0.0
+	panel.offset_top = 0.0
+	panel.offset_bottom = 0.0
+	# If the content ever needs more room, grow evenly both ways instead of off one edge.
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.12, 0.1, 0.08, 0.95)
 	style.border_color = Color(0.75, 0.6, 0.3)
@@ -123,6 +133,7 @@ func _build() -> void:
 	rows.add_child(_smelt_row)
 	var smelt_label := _label("Smelt: %s makes 1 iron" % Inventory.describe_cost(Config.SMELT_COST), 18, Color.WHITE)
 	smelt_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_wrap(smelt_label)
 	_smelt_row.add_child(smelt_label)
 	_smelt_one = _button("Smelt 1")
 	_smelt_one.pressed.connect(func() -> void: _inventory.smelt(1))
@@ -146,11 +157,18 @@ func _row(parent: Control, title: String, description: String, cost: String) -> 
 	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	text.add_theme_constant_override("separation", 0)
 	row.add_child(text)
-	text.add_child(_label(title, 21, Color(1, 0.95, 0.85)))
-	text.add_child(_label(description, 15, Color(0.8, 0.8, 0.8)))
+	var title_label := _label(title, 24, Color(1, 0.95, 0.85))
+	title_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	title_label.add_theme_constant_override("outline_size", 4)
+	_wrap(title_label)
+	text.add_child(title_label)
+	var description_label := _label(description, 15, Color(0.8, 0.8, 0.8))
+	_wrap(description_label)
+	text.add_child(description_label)
 	var cost_label := _label(cost, 17, Color(0.95, 0.8, 0.5))
-	cost_label.custom_minimum_size = Vector2(230, 0)
+	cost_label.custom_minimum_size = Vector2(180, 0)
 	cost_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_wrap(cost_label)
 	row.add_child(cost_label)
 	var button := _button("Craft")
 	row.add_child(button)
@@ -163,6 +181,14 @@ func _label(text: String, font_size: int, color: Color) -> Label:
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
 	return label
+
+
+## Lets a label wrap onto more lines instead of pushing its row wider,
+## and never clips or trims its text.
+func _wrap(label: Label) -> void:
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.clip_text = false
+	label.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
 
 
 func _button(text: String) -> Button:
