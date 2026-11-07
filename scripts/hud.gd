@@ -27,6 +27,7 @@ const CraftingMenu := preload("res://scripts/crafting_menu.gd")
 const FurnaceMenu := preload("res://scripts/furnace_menu.gd")
 const PauseMenu := preload("res://scripts/pause_menu.gd")
 const ArmorIcon := preload("res://scripts/armor_icon.gd")
+const ThiefArrows := preload("res://scripts/thief_arrows.gd")
 const TITLE_SCENE := "res://scenes/title.tscn"
 const Config := preload("res://scripts/game_config.gd")
 ## Enough slots for every weapon at once. Keys 1 to 9 pick the first nine.
@@ -52,6 +53,7 @@ var _pause_menu: PauseMenu
 var _armor_badge: HBoxContainer
 var _fade: ColorRect
 var _companions_label: Label
+var _thief_arrows: Control
 var _release_panel: Control
 var _release_title: Label
 var _release_buttons: VBoxContainer
@@ -123,6 +125,10 @@ func _ready() -> void:
 	_crafting_menu.close_requested.connect(close_crafting)
 	add_child(_crafting_menu)
 	_build_reload_bar()
+	_thief_arrows = ThiefArrows.new()
+	_thief_arrows.name = "ThiefArrows"
+	add_child(_thief_arrows)
+	_thief_arrows.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_build_companions_label()
 	_build_release_panel()
 	_fade = ColorRect.new()
@@ -555,10 +561,10 @@ func on_soldier_fell(role: String) -> void:
 ## entrance), then fades back in. Real time, so it's quick even in slow motion.
 func fade_through_black(midpoint: Callable) -> void:
 	var fade := _fade.create_tween().set_ignore_time_scale(true)
-	fade.tween_property(_fade, "modulate:a", 1.0, 0.3)
+	fade.tween_property(_fade, "modulate:a", 1.0, Config.BUNKER_FADE_TIME)
 	fade.tween_callback(midpoint)
 	fade.tween_interval(0.2)
-	fade.tween_property(_fade, "modulate:a", 0.0, 0.4)
+	fade.tween_property(_fade, "modulate:a", 0.0, Config.BUNKER_FADE_TIME * 1.3)
 
 
 ## A short message on the right side of the screen that fades away.
@@ -645,7 +651,7 @@ func hide_for_cutscene() -> void:
 	_on_release_button(-1)
 	close_crafting()
 	close_furnace_menu()
-	for node: CanvasItem in [_status, _wave_info, _big_boss_panel, _hotbar, _crosshair, _reload_bar,
+	for node: CanvasItem in [_status, _wave_info, _big_boss_panel, _hotbar, _crosshair, _reload_bar, _thief_arrows,
 			_pickup_label, _pc_hint, _touch_controls, _banner]:
 		node.visible = false
 	_pickup_prompt = ""
@@ -679,6 +685,7 @@ func _show_end_screen(title: String, subtitle: String) -> void:
 	_pc_hint.visible = false
 	_pickup_label.visible = false
 	_crosshair.visible = false
+	_thief_arrows.visible = false
 	_game_over.visible = true
 	_restart_button.grab_focus()
 
@@ -698,6 +705,11 @@ func _on_quit_pressed() -> void:
 ## A red warning across the middle of the screen (a bandit's theft, D-2).
 func show_alert(text: String) -> void:
 	_show_banner(text, Color(1.0, 0.42, 0.32))
+
+
+## A big golden pop-up in the middle of the screen (the bunker chest's haul).
+func show_popup(text: String) -> void:
+	_show_banner(text, Color(1.0, 0.88, 0.45))
 
 
 ## Shows big text in the middle of the screen for a couple of seconds.

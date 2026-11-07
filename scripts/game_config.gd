@@ -46,7 +46,7 @@ const ENEMY_LOOKS := ["bandit", "archer", "swordsman", "rider"]
 const ENEMY_LOOK_COLORS := {
 	"bandit": Color(0.33, 0.29, 0.27),
 	"archer": Color(0.42, 0.53, 0.3),
-	"swordsman": Color(0.66, 0.27, 0.22),
+	"swordsman": Color(0.56, 0.58, 0.62),
 	"rider": Color(0.36, 0.43, 0.63),
 }
 const HORSE_COLOR := Color(0.5, 0.34, 0.22)
@@ -55,7 +55,7 @@ const HORSE_COLOR := Color(0.5, 0.34, 0.22)
 ## edge this much faster than it walks, and is gone (with the loot) if it gets
 ## this far from the middle of the forest.
 const BANDIT_STEAL_AMOUNT := 5
-const BANDIT_FLEE_SPEED := 1.5
+const BANDIT_FLEE_SPEED := 1.3
 const BANDIT_ESCAPE_RADIUS := 32.5
 
 # --- The big boss (wave 20, V-4, V-5, V-8) -----------------------------------------
@@ -141,7 +141,7 @@ const KNIGHT_START := Vector3(0.0, 0.0, 24.0)
 ## or reach it; the trapdoor and the hidden castle door take the knight there.
 const BUNKER_CENTER := Vector3(0.0, 0.0, -160.0)
 ## Inside size: width (x), height (y) and depth (z), in metres.
-const BUNKER_SIZE := Vector3(11.0, 3.4, 8.0)
+const BUNKER_SIZE := Vector3(12.0, 3.6, 9.0)
 ## The trapdoor, half hidden by leaves and bushes at the edge of the clearing.
 const TRAPDOOR_SPOT := Vector3(-4.2, 0.0, -1.0)
 ## The hidden door, measured from the middle of the courtyard: a loose stone on
@@ -151,6 +151,15 @@ const CASTLE_DOOR_OFFSET := Vector3(-7.47, 0.0, 2.0)
 const BUNKER_CHEST := {"diamond": 6, "titanium": 3}
 ## How close the knight has to be to use an entrance, a ladder or the chest, in metres.
 const PASSAGE_USE_RANGE := 1.8
+## Real seconds the trapdoor or the stone takes to open before the fade, the
+## fade itself (each way), and how long an entrance stays open afterwards.
+const PASSAGE_OPEN_TIME := 0.4
+const BUNKER_FADE_TIME := 0.3
+const PASSAGE_CLOSE_DELAY := 1.5
+## Torch light: brightness, how far it reaches (m), and how much it flickers.
+const TORCH_ENERGY := 1.7
+const TORCH_RANGE := 6.5
+const TORCH_FLICKER := 0.3
 
 # --- The army (A-1, A-2, A-6) ----------------------------------------------------
 

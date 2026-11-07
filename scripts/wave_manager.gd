@@ -13,7 +13,8 @@ extends Node
 ## comes with the last. When every one of them is down, the game is won (V-5).
 ##
 ## Crafting and smelting are open before wave 1 and during breaks, but never
-## from wave 15 on. Waves, spawns and breaks run on world time.
+## from wave 15 on. Waves, spawns and breaks run on world time. While the knight
+## is in the secret bunker during a wave, the wave waits for him.
 ##
 ## For testing: set Start Wave in the Inspector. In debug builds (running from
 ## the editor), F2 skips to the next wave and F3 ends a break, brings the mini
@@ -117,6 +118,18 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_time_played += WorldTime.real_delta
+	# While the knight hides in the secret bunker during a wave, the wave waits:
+	# no more enemies walk in, the mini boss holds back and wave 20's next group
+	# waits (B-2). Breaks keep counting down as normal.
+	if phase == Phase.BREAK or not _knight_in_bunker():
+		_advance(delta)
+	var crafting := can_craft()
+	if crafting != _crafting_was_available:
+		_crafting_was_available = crafting
+		crafting_available_changed.emit(crafting)
+
+
+func _advance(delta: float) -> void:
 	match phase:
 		Phase.BREAK:
 			_break_left -= delta if breaks_use_world_time else WorldTime.real_delta
@@ -135,10 +148,11 @@ func _process(delta: float) -> void:
 				_spawn_mini_boss()
 		Phase.FINAL_BATTLE:
 			_run_final_battle(delta)
-	var crafting := can_craft()
-	if crafting != _crafting_was_available:
-		_crafting_was_available = crafting
-		crafting_available_changed.emit(crafting)
+
+
+func _knight_in_bunker() -> bool:
+	var knight = get_tree().get_first_node_in_group("player")
+	return knight != null and knight.in_bunker
 
 
 ## True when crafting and smelting are open: before wave 1 and during breaks,

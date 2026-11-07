@@ -33,9 +33,11 @@ func _ready() -> void:
 		materials[id] = 0
 
 
-func add(material: String, amount := 1) -> void:
+## Adds `amount` of a material. `announce` shows the HUD's "+1 Wood" message.
+func add(material: String, amount := 1, announce := true) -> void:
 	materials[material] = materials.get(material, 0) + amount
-	item_added.emit(material, amount)
+	if announce:
+		item_added.emit(material, amount)
 	changed.emit()
 
 

@@ -2,9 +2,10 @@ extends Node3D
 ## The chest in the secret bunker (PRD B-3, N-3).
 ##
 ## It holds 6 diamonds and 3 titanium (BUNKER_CHEST in game_config.gd), the only
-## place in the game to find them. Opening it with E / Grab takes everything at
-## once. It never refills during a run, however many times the knight comes
-## back; a new game (Try Again) starts with a full chest again.
+## place in the game to find them. "[E] Open chest" takes everything at once,
+## with a "+6 Diamond, +3 Titanium" pop-up. It then stays open and empty for the
+## rest of the run, however many times the knight comes back; a new game (Try
+## Again) starts with a full chest again.
 
 const Config := preload("res://scripts/game_config.gd")
 const Art := preload("res://scripts/art.gd")
@@ -35,7 +36,7 @@ func pickup_range() -> float:
 
 
 func pickup_prompt() -> String:
-	return "Open the chest"
+	return "Open chest"
 
 
 func pickup_button() -> String:
@@ -48,17 +49,17 @@ func interact() -> void:
 		return
 	_opened = true
 	var lift := create_tween()
-	lift.tween_property(_lid, "rotation:x", -1.9, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	lift.tween_property(_lid, "rotation:x", 1.9, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	Effects.burst(global_position + Vector3.UP * 0.7, 1.2, Color(0.85, 0.97, 1.0), get_tree().current_scene)
 	var found: Array[String] = []
 	for id in Config.BUNKER_CHEST:
 		var amount: int = Config.BUNKER_CHEST[id]
-		inventory.add(id, amount)
-		found.append("%d %s" % [amount, String(Config.MATERIAL_NAMES[id]).to_lower()])
+		inventory.add(id, amount, false)
+		found.append("+%d %s" % [amount, Config.MATERIAL_NAMES[id]])
 	WorldTime.bump()
 	var hud = get_tree().get_first_node_in_group("hud")
 	if hud != null:
-		hud.show_toast("The chest held %s! It won't fill up again." % " and ".join(found))
+		hud.show_popup(", ".join(found))
 
 
 func _build_model() -> void:
