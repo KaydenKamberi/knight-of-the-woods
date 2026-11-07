@@ -10,14 +10,20 @@ extends CanvasLayer
 ## - Wave counter, dummies left, break countdown, a "Wave X" banner and the
 ##   mini boss's health bar (M4), fed by the wave manager.
 ## - Army counter (A-5) and short messages when soldiers arrive or fall.
+## - Hotbar (R-15), carried materials, "+1 Wood" messages, and the crafting
+##   menu (C / Craft button, only during crafting breaks).
 ## - Game-over screen with a Restart button when the knight falls, and the
 ##   "Final battle coming soon" screen after wave 19.
 
 signal input_mode_changed(touch: bool)
 ## Forwarded from the touch controls, in screen pixels.
 signal look_dragged(relative: Vector2)
+signal crafting_menu_toggled(open: bool)
 
 const TouchControls := preload("res://scripts/touch_controls.gd")
+const CraftingMenu := preload("res://scripts/crafting_menu.gd")
+const Config := preload("res://scripts/game_config.gd")
+const HOTBAR_SLOTS := 9
 
 ## Show the "World time 5%" readout (handy while tuning the time mechanic).
 @export var show_world_time := true
@@ -28,6 +34,12 @@ var _pickup_prompt := ""
 var _last_health := -1
 var _flash_tween: Tween
 var _banner_tween: Tween
+var _crafting_available := false
+var _knives_left := 0
+var _crafting_menu: CraftingMenu
+var _hotbar_slots: Array[Label] = []
+var _slot_style: StyleBoxFlat
+var _selected_style: StyleBoxFlat
 
 @onready var _touch_controls: TouchControls = $TouchControls
 @onready var _pc_hint: Control = $PcHint
@@ -50,12 +62,35 @@ var _banner_tween: Tween
 @onready var _banner: Label = $Banner
 @onready var _army_label: Label = $Status/ArmyLabel
 @onready var _toasts: VBoxContainer = $Toasts
+@onready var _materials_label: Label = $Status/MaterialsLabel
+@onready var _craft_hint: Label = $WaveInfo/CraftHint
+@onready var _hotbar: HBoxContainer = $Hotbar
 
 
 func _ready() -> void:
+	add_to_group("hud")
 	_touch_controls.look_dragged.connect(func(relative: Vector2) -> void: look_dragged.emit(relative))
 	_restart_button.pressed.connect(_on_restart_pressed)
+	_build_hotbar()
+	_crafting_menu = CraftingMenu.new()
+	_crafting_menu.name = "CraftingMenu"
+	_crafting_menu.visible = false
+	_crafting_menu.close_requested.connect(close_crafting)
+	add_child(_crafting_menu)
 	_set_touch_mode(DisplayServer.is_touchscreen_available())
+	_watch_inventory.call_deferred()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("craft"):
+		if _crafting_menu.visible:
+			close_crafting()
+		else:
+			open_crafting()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("pause") and _crafting_menu.visible:
+		close_crafting()
+		get_viewport().set_input_as_handled()
 
 
 func _input(event: InputEvent) -> void:
@@ -72,6 +107,7 @@ func _input(event: InputEvent) -> void:
 func _process(_delta: float) -> void:
 	_pc_hint.visible = not touch_mode and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED
 	_pickup_label.visible = not touch_mode and not _pickup_prompt.is_empty()
+	_update_hotbar()
 	_world_time_label.visible = show_world_time
 	if show_world_time:
 		_world_time_label.text = "World time %d%%" % roundi(WorldTime.speed * 100.0)
@@ -89,7 +125,7 @@ func set_health(health: int, max_health: int) -> void:
 
 func set_knives(count: int, max_count: int) -> void:
 	_knife_label.text = "Knives %d / %d" % [count, max_count]
-	_touch_controls.throw_enabled = count > 0
+	_knives_left = count
 
 
 func set_shift_lock(enabled: bool) -> void:
@@ -106,6 +142,101 @@ func set_pickup_prompt(prompt: String) -> void:
 ## Freezes the game and shows the game-over screen.
 func show_game_over() -> void:
 	_show_end_screen("You have fallen", "The dummies got the better of you.")
+
+
+# --- Crafting -------------------------------------------------------------------
+
+func open_crafting() -> void:
+	if not _crafting_available or _game_over.visible:
+		return
+	_crafting_menu.open()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_touch_controls.visible = false
+	crafting_menu_toggled.emit(true)
+
+
+func close_crafting() -> void:
+	if not _crafting_menu.visible:
+		return
+	_crafting_menu.visible = false
+	_touch_controls.visible = touch_mode and not _game_over.visible
+	crafting_menu_toggled.emit(false)
+
+
+## Connected to the wave manager: crafting opens during breaks after waves 1 to 14.
+func on_crafting_available_changed(available: bool) -> void:
+	_crafting_available = available
+	_craft_hint.visible = available
+	_craft_hint.text = "Tap Craft to make weapons" if touch_mode else "Press C to craft"
+	_touch_controls.craft_visible = available
+	if not available:
+		close_crafting()
+
+
+func _watch_inventory() -> void:
+	var inventory = get_tree().get_first_node_in_group("inventory")
+	if inventory == null:
+		return
+	inventory.changed.connect(func() -> void: _update_materials(inventory))
+	inventory.item_added.connect(func(material: String, amount: int) -> void:
+		show_toast("+%d %s" % [amount, Config.MATERIAL_NAMES.get(material, material)]))
+	_update_materials(inventory)
+
+
+## The materials the knight carries, under the health bar (only the ones he has).
+func _update_materials(inventory) -> void:
+	var parts: Array[String] = []
+	for id in Config.MATERIALS:
+		var count: int = inventory.materials.get(id, 0)
+		if count > 0:
+			parts.append("%s %d" % [Config.MATERIAL_NAMES[id], count])
+	_materials_label.text = "  ·  ".join(parts)
+	_materials_label.visible = not parts.is_empty()
+
+
+# --- Hotbar ---------------------------------------------------------------------
+
+func _build_hotbar() -> void:
+	_slot_style = StyleBoxFlat.new()
+	_slot_style.bg_color = Color(0, 0, 0, 0.5)
+	_slot_style.set_corner_radius_all(6)
+	_slot_style.set_content_margin_all(8)
+	_selected_style = _slot_style.duplicate()
+	_selected_style.bg_color = Color(0.25, 0.2, 0.08, 0.85)
+	_selected_style.border_color = Color(1, 0.85, 0.35)
+	_selected_style.set_border_width_all(2)
+	for i in HOTBAR_SLOTS:
+		var slot := Label.new()
+		slot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		slot.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		slot.custom_minimum_size = Vector2(96, 52)
+		slot.add_theme_font_size_override("font_size", 15)
+		slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.visible = false
+		_hotbar.add_child(slot)
+		_hotbar_slots.append(slot)
+
+
+func _update_hotbar() -> void:
+	var knight = get_tree().get_first_node_in_group("player")
+	if knight == null or knight.weapons == null:
+		return
+	var info: Array = knight.weapons.hotbar_info()
+	for i in HOTBAR_SLOTS:
+		var slot := _hotbar_slots[i]
+		slot.visible = i < info.size()
+		if not slot.visible:
+			continue
+		var entry: Dictionary = info[i]
+		var text := "%d  %s" % [entry["key"], entry["name"]]
+		if not String(entry["detail"]).is_empty():
+			text += "\n" + entry["detail"]
+		slot.text = text
+		slot.add_theme_stylebox_override("normal", _selected_style if entry["selected"] else _slot_style)
+	var equipped: String = knight.weapons.equipped()
+	_touch_controls.hammer_equipped = equipped == "cryo_hammer"
+	# The Attack button dims only when holding knives with none left to throw.
+	_touch_controls.throw_enabled = equipped != "knife" or _knives_left > 0
 
 
 # --- Called by the army (connected in forest.tscn) ---------------------------------
@@ -190,6 +321,7 @@ func show_final_battle_placeholder() -> void:
 # -----------------------------------------------------------------------------
 
 func _show_end_screen(title: String, subtitle: String) -> void:
+	close_crafting()
 	_end_title.text = title
 	_end_subtitle.text = subtitle
 	get_tree().paused = true

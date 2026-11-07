@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://scripts/wave_manager.gd" id="5_waves"]
 [ext_resource type="Script" path="res://scripts/army.gd" id="6_army"]
 [ext_resource type="Script" path="res://scripts/debug_keys.gd" id="7_debug"]
+[ext_resource type="Script" path="res://scripts/inventory.gd" id="8_inventory"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 sky_top_color = Color(0.36, 0.55, 0.78, 1)
@@ -77,6 +78,9 @@ script = ExtResource("5_waves")
 [node name="Army" type="Node" parent="."]
 script = ExtResource("6_army")
 
+[node name="Inventory" type="Node" parent="."]
+script = ExtResource("8_inventory")
+
 [node name="DebugKeys" type="Node" parent="."]
 script = ExtResource("7_debug")
 
@@ -102,3 +106,6 @@ script = ExtResource("7_debug")
 [connection signal="army_changed" from="Army" to="HUD" method="on_army_changed"]
 [connection signal="rescue_arrived" from="Army" to="HUD" method="on_rescue_arrived"]
 [connection signal="soldier_fell" from="Army" to="HUD" method="on_soldier_fell"]
+[connection signal="crafting_available_changed" from="WaveManager" to="HUD" method="on_crafting_available_changed"]
+[connection signal="crafting_menu_toggled" from="HUD" to="Knight" method="set_menu_open"]
+[connection signal="wave_cleared" from="WaveManager" to="Knight" method="heal_full"]

@@ -7,9 +7,12 @@ extends Control
 ## - Right half of the screen: drag to look around.
 ## - Camera icon (top right): switches between third and first person.
 ## - Lock icon (under the camera icon): shift-lock, so the knight turns with the camera (C-4).
-## - Throw button (bottom right): throws a knife at the crosshair (W-3).
-##   It's dimmed while the knight has no knives.
-## - Grab button (next to Throw): only appears when a knife is in reach (W-2).
+## - Attack button (bottom right): attacks with the equipped weapon, or throws
+##   a knife at the crosshair. Dimmed while holding knives with none left.
+## - Grab button (next to Attack): only appears when a knife is in reach (W-2).
+## - Weapon button (above Attack): cycles through the hotbar (R-15).
+## - Slam and Spin buttons: only appear while the Cryo hammer is equipped (R-6, R-9).
+## - Craft button (under the lock icon): only appears during crafting breaks (R-5).
 ##
 ## Each finger is tracked separately, so you can walk and look at the same time.
 
@@ -31,11 +34,28 @@ const MOVE_ACTIONS := ["move_left", "move_right", "move_forward", "move_back"]
 @export var grab_button_radius := 48.0
 ## Middle of the Grab button, measured from the bottom-right corner.
 @export var grab_button_home := Vector2(265.0, 95.0)
+## Middles of the smaller buttons, measured from the bottom-right corner.
+@export var weapon_button_home := Vector2(75.0, 265.0)
+@export var slam_button_home := Vector2(220.0, 235.0)
+@export var spin_button_home := Vector2(330.0, 185.0)
+@export var small_button_radius := 40.0
 
 ## Set by the HUD: dims the Throw button when there's nothing to throw.
 var throw_enabled := false:
 	set(value):
-		throw_enabled = value
+		if value != throw_enabled:
+			throw_enabled = value
+			queue_redraw()
+## Set by the HUD: shows Slam and Spin while the Cryo hammer is equipped.
+var hammer_equipped := false:
+	set(value):
+		if value != hammer_equipped:
+			hammer_equipped = value
+			queue_redraw()
+## Set by the HUD: shows the Craft button during crafting breaks.
+var craft_visible := false:
+	set(value):
+		craft_visible = value
 		queue_redraw()
 ## Set by the HUD: highlights the lock icon while shift-lock is on.
 var lock_on := false:
@@ -84,8 +104,16 @@ func _on_finger_down(finger: int, at: Vector2) -> void:
 		_tap_action(&"switch_camera")
 	elif _lock_button_rect().has_point(at):
 		_tap_action(&"shift_lock")
+	elif craft_visible and _craft_button_rect().has_point(at):
+		_tap_action(&"craft")
+	elif at.distance_to(size - weapon_button_home) <= small_button_radius:
+		_tap_action(&"weapon_next")
+	elif hammer_equipped and at.distance_to(size - slam_button_home) <= small_button_radius:
+		_tap_action(&"hammer_slam")
+	elif hammer_equipped and at.distance_to(size - spin_button_home) <= small_button_radius:
+		_tap_action(&"hammer_spin")
 	elif at.distance_to(_throw_button_center()) <= throw_button_radius:
-		_tap_action(&"throw")
+		_tap_action(&"attack")
 	elif grab_visible and at.distance_to(_grab_button_center()) <= grab_button_radius:
 		_tap_action(&"interact")
 	elif at.x < size.x * 0.5:
@@ -153,6 +181,13 @@ func _lock_button_rect() -> Rect2:
 	return rect
 
 
+## The Craft button sits just below the lock icon.
+func _craft_button_rect() -> Rect2:
+	var rect := _lock_button_rect()
+	rect.position.y += camera_button_size + 20.0
+	return rect
+
+
 func _throw_button_center() -> Vector2:
 	return size - throw_button_home
 
@@ -201,7 +236,7 @@ func _draw() -> void:
 	# Throw button, with a knife drawn on it.
 	var throw_center := _throw_button_center()
 	var throw_alpha := 1.0 if throw_enabled else 0.35
-	_draw_round_button(throw_center, throw_button_radius, "THROW", throw_alpha)
+	_draw_round_button(throw_center, throw_button_radius, "ATTACK", throw_alpha)
 	var k := throw_button_radius / 62.0
 	var blade := PackedVector2Array([
 		throw_center + Vector2(-4, -6) * k, throw_center + Vector2(4, -6) * k,
@@ -213,6 +248,13 @@ func _draw() -> void:
 
 	if grab_visible:
 		_draw_round_button(_grab_button_center(), grab_button_radius, "GRAB", 1.0)
+	_draw_round_button(size - weapon_button_home, small_button_radius, "WEAPON", 0.9)
+	if hammer_equipped:
+		_draw_round_button(size - slam_button_home, small_button_radius, "SLAM", 1.0)
+		_draw_round_button(size - spin_button_home, small_button_radius, "SPIN", 1.0)
+	if craft_visible:
+		var craft_rect := _craft_button_rect()
+		_draw_round_button(craft_rect.get_center(), camera_button_size * 0.5, "CRAFT", 1.0)
 
 
 func _draw_round_button(center: Vector2, radius: float, label: String, alpha: float) -> void:

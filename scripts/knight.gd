@@ -15,7 +15,13 @@ extends CharacterBody3D
 ##
 ## The knight pulls throwing knives from wanted posters, carries a few, and
 ## throws them at the crosshair (W-2 to W-4). Dummies' hits lower his health,
-## and at zero he falls and the run ends (E-3).
+## and at zero he falls and the run ends (E-3). His health refills when a wave
+## is cleared (E-4).
+##
+## Crafted weapons, the hotbar and the hammer's specials live on the Weapons
+## child node (knight_weapons.gd). This script routes input to it and gives it
+## the aim. Cryo armour reflects part of every melee hit back at the attacker
+## and slows it (R-10).
 
 ## Sent whenever the view changes. true means first person (inside the helmet).
 signal view_changed(first_person: bool)
@@ -37,6 +43,7 @@ const Config := preload("res://scripts/game_config.gd")
 const AIM_MASK := 1 | 8 | 16
 ## Seconds the throwing arm takes to come down after a throw.
 const THROW_ANIMATION_TIME := 0.25
+const ICE_ARMOR_COLOR := Color(0.62, 0.86, 1.0)
 
 @export var walk_speed := 5.0
 ## How quickly the knight speeds up and slows down, in metres per second per second.
@@ -87,7 +94,12 @@ var _dead := false
 var _throw_animation_left := 0.0
 ## The poster or knife currently in reach (untyped: it can be either script).
 var _pickup_in_reach = null
+## True while the crafting menu is open: the knight stands still and ignores input.
+var _menu_open := false
+var _armor_shown := false
 
+## The Weapons child node (knight_weapons.gd): hotbar, attacks and the hammer's specials.
+@onready var weapons = $Weapons
 @onready var _model: Node3D = $Model
 @onready var _left_leg: Node3D = $Model/LeftLeg
 @onready var _right_leg: Node3D = $Model/RightLeg
@@ -112,11 +124,22 @@ func _ready() -> void:
 	_set_helmet_view(false)
 	# Wait until the whole scene is ready, so the HUD is there to hear it.
 	_announce_status.call_deferred()
+	_watch_inventory.call_deferred()
+
+
+func _watch_inventory() -> void:
+	var inventory = get_tree().get_first_node_in_group("inventory")
+	if inventory != null:
+		inventory.changed.connect(func() -> void: _has_armor())
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _dead:
+	if _dead or _menu_open:
 		return
+	for slot in 9:
+		if event.is_action_pressed("weapon_%d" % (slot + 1)):
+			weapons.select_slot(slot)
+			return
 	if event.is_action_pressed("switch_camera"):
 		toggle_view()
 	elif event.is_action_pressed("shift_lock"):
@@ -129,9 +152,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton:
 		_on_mouse_button(event)
-	elif event.is_action_pressed("throw"):
-		# The touch Throw button sends the action directly.
-		throw_knife()
+	# The touch buttons send these actions directly.
+	elif event.is_action_pressed("attack"):
+		weapons.attack()
+	elif event.is_action_pressed("hammer_slam"):
+		weapons.slam()
+	elif event.is_action_pressed("hammer_spin"):
+		weapons.spin()
+	elif event.is_action_pressed("weapon_next"):
+		weapons.cycle(1)
+	elif event.is_action_pressed("weapon_prev"):
+		weapons.cycle(-1)
 	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		add_look_input(event.screen_relative * mouse_sensitivity)
 
@@ -141,15 +172,21 @@ func _on_mouse_button(event: InputEventMouseButton) -> void:
 	# or every tap would throw a knife.
 	if not event.pressed or _touch_mode or event.device == InputEvent.DEVICE_ID_EMULATION:
 		return
-	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+	if event.is_action_pressed("weapon_next"):
+		weapons.cycle(1)
+	elif event.is_action_pressed("weapon_prev"):
+		weapons.cycle(-1)
+	elif Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		# The first click only captures the mouse for looking around.
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	elif event.is_action_pressed("throw"):
-		throw_knife()
+	elif event.is_action_pressed("attack"):
+		weapons.attack()
+	elif event.is_action_pressed("hammer_slam"):
+		weapons.slam()
 
 
 func _process(_delta: float) -> void:
-	if _dead:
+	if _dead or _menu_open:
 		return
 	_update_pickup_in_reach()
 	# Holding a move key (or the joystick) ramps world time up.
@@ -160,7 +197,7 @@ func _process(_delta: float) -> void:
 func _physics_process(delta: float) -> void:
 	# Movement is relative to where the camera is facing. A fallen knight can't move.
 	var input := Vector2.ZERO
-	if not _dead:
+	if not _dead and not _menu_open:
 		input = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var direction := _yaw.global_basis * Vector3(input.x, 0.0, input.y)
 	var target := direction * walk_speed
@@ -183,10 +220,15 @@ func is_alive() -> bool:
 
 
 ## Called by dummies when their swing lands. `from` is where the hit came from,
-## and `attacker` is who swung (used by Cryo armor later).
-func take_damage(amount: int, from: Vector3, _attacker = null) -> void:
+## and `attacker` is who swung (Cryo armour hits it back).
+func take_damage(amount: int, from: Vector3, attacker = null) -> void:
 	if _dead:
 		return
+	if _has_armor() and is_instance_valid(attacker) and attacker.has_method("apply_slow"):
+		# R-10: reflect part of the hit and frost the attacker for a moment.
+		var reflected := maxi(roundi(amount * Config.ARMOR_REFLECT), 1)
+		attacker.take_hit(reflected, global_position, 1.0, false)
+		attacker.apply_slow(Config.ARMOR_SLOW, Config.ARMOR_SLOW_TIME)
 	health = maxi(health - amount, 0)
 	health_changed.emit(health, max_health)
 	var away := global_position - from
@@ -195,6 +237,19 @@ func take_damage(amount: int, from: Vector3, _attacker = null) -> void:
 		velocity += away.normalized() * knockback_speed
 	if health == 0:
 		_die()
+
+
+## Back to full health (E-4: when a wave is cleared).
+func heal_full(_wave := 0) -> void:
+	if _dead:
+		return
+	health = max_health
+	health_changed.emit(health, max_health)
+
+
+## Called by the HUD when the crafting menu opens or closes.
+func set_menu_open(open: bool) -> void:
+	_menu_open = open
 
 
 ## Sets health directly (used by the debug shortcuts).
@@ -212,16 +267,46 @@ func throw_knife() -> void:
 	_set_knives(knives - 1)
 	WorldTime.bump()
 
+	var start := throw_start()
+	var direction := throw_direction(start)
+	var knife = KNIFE_SCENE.instantiate()
+	get_parent().add_child(knife)
+	knife.launch(start, direction)
+	play_swing()
+
+
+## The direction from `start` to whatever is under the crosshair.
+func throw_direction(start: Vector3) -> Vector3:
 	var forward := -_camera.global_basis.z
-	var start := _throw_start()
 	var direction := _aim_point() - start
 	# Don't throw backwards when the aim lands between the camera and the knight.
 	if direction.length() < 1.0 or direction.normalized().dot(forward) < 0.3:
 		direction = forward
-	var knife = KNIFE_SCENE.instantiate()
-	get_parent().add_child(knife)
-	knife.launch(start, direction)
+	return direction.normalized()
+
+
+## Where the camera is looking, flattened onto the ground (for melee swings).
+func aim_forward_flat() -> Vector3:
+	var forward := -_camera.global_basis.z
+	forward.y = 0.0
+	return forward.normalized() if forward.length_squared() > 0.0001 else -_model.global_basis.z
+
+
+## Turns the knight to face `direction` straight away (so a swing goes where he's aiming).
+func face_direction(direction: Vector3) -> void:
+	if direction.length_squared() > 0.0001:
+		_model.rotation.y = atan2(-direction.x, -direction.z)
+
+
+## Swings the right arm, for throws and attacks.
+func play_swing() -> void:
 	_throw_animation_left = THROW_ANIMATION_TIME
+
+
+## A quick full turn, for the hammer's spin attack.
+func play_spin() -> void:
+	var turn := create_tween()
+	turn.tween_property(_model, "rotation:y", _model.rotation.y + TAU, 0.4)
 
 
 ## Grabs the knife in reach, from a poster or wherever a thrown one stuck (W-2, W-4).
@@ -307,6 +392,26 @@ func _announce_status() -> void:
 func _set_knives(count: int) -> void:
 	knives = count
 	knives_changed.emit(knives, max_knives)
+	weapons.refresh()
+
+
+func _has_armor() -> bool:
+	var inventory = get_tree().get_first_node_in_group("inventory")
+	var armored: bool = inventory != null and inventory.has_armor
+	if armored and not _armor_shown:
+		_show_armor()
+	return armored
+
+
+## Tints the knight's steel icy blue once he wears Cryo armour.
+func _show_armor() -> void:
+	_armor_shown = true
+	var torso := $Model/Torso as MeshInstance3D
+	var steel := (torso.mesh as PrimitiveMesh).material as StandardMaterial3D
+	if steel != null:
+		steel.albedo_color = ICE_ARMOR_COLOR
+		steel.emission_enabled = true
+		steel.emission = ICE_ARMOR_COLOR * 0.25
 
 
 ## Finds the nearest knife the knight could grab, and tells the HUD when that changes.
@@ -341,7 +446,7 @@ func _aim_point() -> Vector3:
 
 
 ## Where a thrown knife leaves the knight: by the right shoulder, or just below the eye slit.
-func _throw_start() -> Vector3:
+func throw_start() -> Vector3:
 	var view := _camera.global_basis
 	if first_person:
 		return _camera.global_position - view.z * 0.4 - view.y * 0.12 + view.x * 0.15

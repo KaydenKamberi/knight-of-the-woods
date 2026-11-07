@@ -20,6 +20,7 @@ const COLORS := [
 	Color(0.64, 0.3, 0.14), Color(0.28, 0.38, 0.26), Color(0.24, 0.21, 0.2),
 ]
 const HEADGEAR := ["crown", "horns", "bucket", "antlers", "hood"]
+const Config := preload("res://scripts/game_config.gd")
 
 
 ## Everything about one wave's mini boss: name, colour, headgear and stats.
@@ -31,11 +32,11 @@ static func info(wave: int) -> Dictionary:
 		"color": COLORS[index],
 		"headgear": HEADGEAR[index % HEADGEAR.size()],
 		# V-7: 300 health in wave 1, +100 each wave, so 2,100 in wave 19.
-		"health": 300 + 100 * (wave - 1),
+		"health": Config.MINI_BOSS_BASE_HEALTH + Config.MINI_BOSS_HEALTH_PER_WAVE * (wave - 1),
 		# Grows from about 1.45x to 1.9x a regular dummy.
 		"size": 1.45 + 0.025 * (wave - 1),
-		# Dummies hit for 10. Mini bosses hit for 15, rising to 24 by wave 19.
-		"damage": 15 + floori(wave / 2.0),
+		# E-4: dummies hit for 10; mini bosses for 15 plus 1 per wave.
+		"damage": Config.MINI_BOSS_BASE_DAMAGE + Config.MINI_BOSS_DAMAGE_PER_WAVE * wave,
 		"walk_speed": 2.0 + 0.03 * wave,
 	}
 

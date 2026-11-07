@@ -29,11 +29,15 @@ The full design is in `Knight of the Still Woods — PRD.md`.
 | --- | --- | --- |
 | Move | WASD or arrow keys | Joystick: put your thumb anywhere on the left half of the screen |
 | Look around | Mouse (click the game first to capture the mouse) | Drag on the right half of the screen |
-| Throw a knife at the crosshair | Left click (once the mouse is captured) | Throw button, bottom right |
-| Pull a knife from a poster, or pick up a thrown one | E | Grab button (appears when a knife is in reach) |
+| Attack, throw or shoot (equipped weapon) | Left click | Attack button, bottom right |
+| Hammer ground slam (once per wave) | Right click | Slam button (hammer only) |
+| Hammer spin | F | Spin button (hammer only) |
+| Grab a knife or pick something up | E | Grab button (appears when one is in reach) |
+| Switch weapon | 1 to 9, or the mouse wheel | Weapon button (cycles) |
+| Crafting menu (breaks only) | C | Craft button (appears during breaks) |
 | Shift-lock: the knight turns with the camera | Left Shift | Lock icon, under the camera icon |
 | Switch view (over the shoulder / inside the helmet) | V | Camera icon, top right |
-| Free the mouse (also turns shift-lock off) | Esc | — |
+| Free the mouse (also turns shift-lock off, closes the crafting menu) | Esc | — |
 
 Touch controls appear automatically on touch screens and stay hidden on PC.
 If a PC has a touch screen, the last thing you used wins: touching the screen shows them, and typing or clicking a mouse hides them.
@@ -51,10 +55,15 @@ If a PC has a touch screen, the last thing you used wins: touching the screen sh
 - **`scenes/dummy.tscn`** + **`scripts/dummy.gd`**: a straw training dummy that walks at the knight and swings at him. Health 100, so two knife hits. The first hit knocks it into a ragdoll; it lies there for a moment, then pulls itself back together. The second hit makes it fall apart. Speed, damage and timings are on the `Dummy` node in the Inspector. Its body is built in code, so in the editor you only see its collision capsule.
 - **`scripts/crosshair.gd`**: the aiming dot in the middle of the screen.
 - **`scripts/wave_manager.gd`** (the `WaveManager` node in `forest.tscn`): runs waves 1 to 19. See **Waves** below.
-- **`scripts/game_config.gd`**: **every number worth tuning, in one file**: health, damage, time ramp, breaks, army size, rescue count, soldier stats (and, from M5.5, loot and recipes). Nodes' Inspector settings take their defaults from here.
+- **`scripts/game_config.gd`**: **every number worth tuning, in one file**: health, damage, time ramp, breaks, army size, rescue count, soldier stats, loot drop rates, recipes, weapon stats and the hammer, blaster, dagger and armour values. Nodes' Inspector settings take their defaults from here.
 - **`scripts/army.gd`** (the `Army` node) + **`scenes/soldier.tscn`** + **`scripts/soldier.gd`**: the knight's army. See **The army** below.
 - **`scenes/arrow.tscn`** + **`scripts/arrow.gd`**: arrows shot by archers.
 - **`scripts/debug_keys.gd`** (the `DebugKeys` node): testing shortcuts (see below).
+- **`scripts/inventory.gd`** (the `Inventory` node): materials, crafted weapons, blaster shots, armour and the furnace.
+- **`scripts/loot.gd`** + **`scripts/loot_drops.gd`**: loot that pops out of defeated dummies, and the drop rolls.
+- **`scripts/crafting_menu.gd`**: the crafting menu (built in code, shown by the HUD).
+- **`scripts/knight_weapons.gd`** (the `Weapons` node on the knight): hotbar, every weapon's attack, the hammer's slam and spin.
+- **`scripts/weapon_models.gd`**, **`scripts/blaster_round.gd`**, **`scripts/effects.gd`**, **`scripts/furnace.gd`**: weapon models in the knight's hand, the blaster's exploding round, blast effects, and the furnace.
 - **`scripts/mini_bosses.gd`**: the 19 mini bosses: names, colours, headgear and stats. Mini bosses use the dummy scene and script, made bigger and tougher.
 - **`scripts/world_time.gd`**: the time mechanic (autoload, reachable from any script as `WorldTime`). See below.
 - **`scenes/swinging_log.tscn`** + **`scripts/swinging_log.gd`**: a log on two ropes in front of the start point, for checking that the world slows down.
@@ -86,8 +95,9 @@ The "World time" readout in the top-left corner shows the current speed. Turn it
 
 ## Waves
 
+- **Mini boss hits** do 15 + 1 per wave (E-4).
 - **Wave n** sends in 2 × n dummies from spawn points around the forest edge, a few at a time.
-- When they're all down, **that wave's mini boss** appears, with a health bar at the top of the screen. Its health is 300 + 100 × (wave − 1), so 2,100 at wave 19. Mini bosses are bigger, hit harder (15, rising to 24, vs 10 for a dummy), wear headgear, and only flinch when hit until they fall apart.
+- When they're all down, **that wave's mini boss** appears, with a health bar at the top of the screen. Its health is 300 + 100 × (wave − 1), so 2,100 at wave 19. Mini bosses are bigger, hit harder, wear headgear, and only flinch when hit until they fall apart.
 - Beating the mini boss ends the wave. Then comes a **break** with a countdown: 30 seconds after wave 1, growing evenly to 60 seconds after wave 14. From wave 15 on there's no break: the next wave starts straight away.
 - **Wanted posters** show the current (or next) wave's mini boss: a little portrait, its name and its wave.
 - After the **wave 19** mini boss, a "Final battle coming soon" screen appears.
@@ -109,6 +119,28 @@ The "World time" readout in the top-left corner shows the current speed. Turn it
 - Soldiers more than 25 m from the knight think less often and skip their walk animation.
 - The counter in the top-left shows how many are left, by role.
 
+## Loot and crafting
+
+- **Loot:** each dummy drops 1 or 2 random materials (wood, stone, raw iron, coal, string; string is the rarest). Each mini boss drops 1 Cryo Crystal plus 3 random materials, with a 1 in 20 chance of an Ultra Crystal. Loot pops out of the body; walk over it to pick it up. What you carry shows under the health bar.
+- **Crafting** opens with **C** (Craft button on touch), only during the breaks after waves 1 to 14. "Press C to craft" shows at the top while it's open.
+- **Furnace:** build it once for 15 stone. It appears in the clearing and unlocks **Smelt**: 1 raw iron + 1 coal makes 1 iron.
+- **Weapons** go on the hotbar at the bottom (knives are always slot 1). Melee weapons and the bow never break. Only the Ultra blaster runs out (3 shots per crafted blaster).
+
+| Weapon | Damage | Recipe | What it does |
+| --- | --- | --- | --- |
+| Throwing knife | 50 | From posters | Thrown, picked up again |
+| Spear | 60 | 3 wood + 2 stone | Long reach (3.2 m) |
+| Sword | 50 | 3 iron + 1 wood | Fast swings |
+| Axe | 75 | 3 iron + 2 wood | Slow, heavy swings that hit everyone in front |
+| Bow | 40 | 3 wood + 2 string | Unlimited arrows |
+| Cryo dagger | 30 | 1 Cryo + 2 stone + 1 string | A slash freezes the head; the next dagger hit shatters it. That defeats a regular dummy outright; a mini boss takes 300 instead |
+| Cryo hammer | 100 | 2 Cryo + 3 iron | Slowest. Right click: ground slam, once per wave: 150 damage within 6 m, survivors frozen for 3 s, weakened dummies (under half health) shatter. F: spin, 50 damage within 3 m, 5 s cooldown |
+| Ultra blaster | 1,000 | 1 Ultra Crystal | Lobs exploding rounds that hit everything in the blast. One hit defeats any dummy or mini boss. 3 shots, then it breaks |
+| Cryo armour | — | 3 iron + 3 stone + 2 Cryo | Reflects 25% of melee damage back and slows the attacker by half for 1 s. The knight's armour turns icy blue |
+
+- The knight's **health refills** when a wave is cleared.
+- Every number above (damage, ranges, cooldowns, recipes, drop rates) is in `scripts/game_config.gd`.
+
 ## Testing shortcuts
 
 These work when running from the editor (debug builds only):
@@ -118,6 +150,8 @@ These work when running from the editor (debug builds only):
 | F2 | Skip to the next wave straight away |
 | F3 | End a break early, or remove this wave's dummies so the mini boss comes out |
 | F4 | Drop the knight to half health (during a wave this brings in the army) |
+| F6 | Get a pile of materials: 10 of each regular material, 5 iron, 4 Cryo Crystals, 1 Ultra Crystal |
+| F7 | Let the crafting menu open at any time, not just during breaks (press again to turn off) |
 
 You can also start at a later wave: select the `WaveManager` node in `forest.tscn` and set **Start Wave**.
 

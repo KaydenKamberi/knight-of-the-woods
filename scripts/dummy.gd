@@ -15,6 +15,10 @@ extends CharacterBody3D
 ## Mini bosses (M4) use this same script, set up by configure_mini_boss(): they
 ## are bigger, tougher, wear headgear, and only flinch when hit until their
 ## health runs out, then fall apart like any dummy.
+##
+## Crafted weapons (M5.5) can also freeze a dummy solid (hammer slam), freeze
+## its head (Cryo dagger) so the next dagger hit shatters it, or slow it (Cryo
+## armour). A defeated dummy drops loot.
 
 ## Sent once, when the dummy's health reaches zero.
 signal defeated
@@ -27,6 +31,8 @@ const WORLD_LAYER := 1
 const DEBRIS_LAYER := 16
 const MiniBosses := preload("res://scripts/mini_bosses.gd")
 const Config := preload("res://scripts/game_config.gd")
+const LootDrops := preload("res://scripts/loot_drops.gd")
+const ICE_COLOR := Color(0.6, 0.85, 1.0)
 
 @export var max_health := Config.DUMMY_HEALTH
 @export var walk_speed := 2.2
@@ -82,6 +88,12 @@ var _detour_side := 1.0
 var _reassemble_tween: Tween
 var _flinch_tween: Tween
 var _stagger_left := 0.0
+var _frozen_left := 0.0
+var _slow_left := 0.0
+var _slow_factor := 1.0
+var _head_ice: MeshInstance3D
+## The cloth materials and their normal colours, so freezing can tint them icy and back.
+var _body_materials := {}
 
 @onready var _body: Node3D = $Body
 @onready var _collision: CollisionShape3D = $Collision
@@ -112,12 +124,22 @@ func configure_mini_boss(info: Dictionary) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	_state_time += delta
+	_slow_left = maxf(_slow_left - delta, 0.0)
+	if _frozen_left > 0.0:
+		# Frozen solid: no walking or swinging until it thaws.
+		_frozen_left -= delta
+		if _frozen_left <= 0.0:
+			_set_ice_tint(false)
+		if state == State.WALKING or state == State.ATTACKING:
+			return
+	# A slowed dummy does everything at a fraction of its speed (Cryo armour, R-10).
+	var action_delta := delta * (_slow_factor if _slow_left > 0.0 else 1.0)
+	_state_time += action_delta
 	match state:
 		State.WALKING:
-			_walk(delta)
+			_walk(action_delta)
 		State.ATTACKING:
-			_attack(delta)
+			_attack(action_delta)
 		State.RAGDOLL:
 			if _state_time >= ragdoll_time:
 				_reassemble()
@@ -130,14 +152,76 @@ func is_alive() -> bool:
 	return state != State.DEFEATED
 
 
-## Called by a melee hit (a soldier's sword, and later the knight's weapons).
-## `from` is where the hit came from.
-func take_hit(damage: int, from: Vector3, push := 3.0) -> void:
+## Called by a melee hit or a blast (soldiers, the knight's weapons, explosions).
+## `from` is where the hit came from. With knockdown off (Cryo armour's
+## reflected damage), a regular dummy only flinches instead of going ragdoll.
+func take_hit(damage: int, from: Vector3, push := 3.0, knockdown := true) -> void:
 	var aim := global_position + Vector3.UP * 1.2 * size_scale
 	var direction := aim - from
 	direction.y = 0.0
 	direction = direction.normalized() if direction.length_squared() > 0.0001 else -_body.global_basis.z
-	_apply_hit(_find_part("torso"), damage, direction, push)
+	_apply_hit(_find_part("torso"), damage, direction, push, knockdown)
+
+
+## Share of health left, from 1.0 (full) to 0.0.
+func health_fraction() -> float:
+	return float(health) / maxf(max_health, 1)
+
+
+## Freezes the dummy solid for `seconds` of world time (hammer slam, R-6).
+func freeze(seconds: float) -> void:
+	if state == State.DEFEATED or state == State.RAGDOLL:
+		return
+	_frozen_left = maxf(_frozen_left, seconds)
+	_set_ice_tint(true)
+
+
+## Slows the dummy to `factor` of its speed for `seconds` (Cryo armour, R-10).
+func apply_slow(factor: float, seconds: float) -> void:
+	_slow_factor = factor
+	_slow_left = maxf(_slow_left, seconds)
+
+
+func has_frozen_head() -> bool:
+	return is_instance_valid(_head_ice)
+
+
+## Encases the head in ice (Cryo dagger, R-8). The next dagger hit shatters it.
+func freeze_head() -> void:
+	if state == State.DEFEATED or has_frozen_head():
+		return
+	var head: Node3D = _find_part("head")["mesh"]
+	var ice := BoxMesh.new()
+	ice.size = Vector3.ONE * 0.38 * size_scale
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(ICE_COLOR, 0.55)
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.emission_enabled = true
+	material.emission = ICE_COLOR * 0.4
+	ice.material = material
+	_head_ice = MeshInstance3D.new()
+	_head_ice.mesh = ice
+	head.add_child(_head_ice)
+
+
+## Shatters a frozen head: a regular dummy is defeated outright; a mini boss
+## takes DAGGER_SHATTER_BOSS_DAMAGE instead (R-8).
+func shatter_head(from: Vector3) -> void:
+	if not has_frozen_head():
+		return
+	_head_ice.queue_free()
+	_head_ice = null
+	if is_mini_boss:
+		take_hit(Config.DAGGER_SHATTER_BOSS_DAMAGE, from)
+		return
+	(_find_part("head")["mesh"] as Node3D).visible = false
+	shatter(from)
+
+
+## Defeats the dummy on the spot (a frozen head shattering, or the hammer slam).
+func shatter(from: Vector3) -> void:
+	if state != State.DEFEATED:
+		take_hit(health, from, 5.0)
 
 
 ## Called by a knife or arrow that hits this dummy (or one of its ragdoll pieces).
@@ -148,7 +232,7 @@ func take_projectile_hit(collider: Object, point: Vector3, direction: Vector3, d
 	return part["mesh"]
 
 
-func _apply_hit(part: Dictionary, damage: int, direction: Vector3, push: float) -> void:
+func _apply_hit(part: Dictionary, damage: int, direction: Vector3, push: float, knockdown := true) -> void:
 	if state != State.DEFEATED:
 		health = maxi(health - damage, 0)
 		health_changed.emit(health, max_health)
@@ -157,8 +241,10 @@ func _apply_hit(part: Dictionary, damage: int, direction: Vector3, push: float) 
 				_go_ragdoll()
 			_start(State.DEFEATED)
 			remove_from_group("dummies")
+			_set_ice_tint(false)
+			LootDrops.drop_from(self, is_mini_boss)
 			defeated.emit()
-		elif not ragdoll_on_hit:
+		elif not ragdoll_on_hit or not knockdown:
 			_flinch()
 		elif state == State.RAGDOLL:
 			_state_time = 0.0  # Knocked down again: stay down a little longer.
@@ -188,15 +274,16 @@ func _walk(delta: float) -> void:
 			# Stuck on a tree or rock: walk off to one side for a moment.
 			_detour_time -= delta
 			direction = direction.rotated(Vector3.UP, _detour_side * 1.2)
-	velocity.x = direction.x * walk_speed
-	velocity.z = direction.z * walk_speed
+	var speed := walk_speed * (_slow_factor if _slow_left > 0.0 else 1.0)
+	velocity.x = direction.x * speed
+	velocity.z = direction.z * speed
 	_apply_gravity(delta)
 	var before := global_position
 	move_and_slide()
 
 	if direction != Vector3.ZERO:
 		var moved_speed := (global_position - before).length() / maxf(delta, 0.0001)
-		_stuck_time = _stuck_time + delta if moved_speed < walk_speed * 0.3 else 0.0
+		_stuck_time = _stuck_time + delta if moved_speed < speed * 0.3 else 0.0
 		if _stuck_time > 0.5:
 			_stuck_time = 0.0
 			_detour_time = 1.0
@@ -265,6 +352,12 @@ func _update_target(delta: float) -> void:
 			nearest_distance = distance
 
 
+func _set_ice_tint(frozen: bool) -> void:
+	for material: StandardMaterial3D in _body_materials:
+		var normal: Color = _body_materials[material]
+		material.albedo_color = normal.lerp(ICE_COLOR, 0.65) if frozen else normal
+
+
 func _is_good_target(candidate) -> bool:
 	return is_instance_valid(candidate) and candidate.is_alive()
 
@@ -325,6 +418,8 @@ func _go_ragdoll() -> void:
 	if _flinch_tween:
 		_flinch_tween.kill()
 	_start(State.RAGDOLL)
+	_frozen_left = 0.0
+	_set_ice_tint(false)
 	_collision.set_deferred("disabled", true)
 
 	# Move every box into its own rigid body, right where it is now.
@@ -483,6 +578,8 @@ func _build_body() -> void:
 		"limb": _material(cloth_color.darkened(0.14)),
 		"head": _material(cloth_color.lightened(0.1)),
 	}
+	for key in materials:
+		_body_materials[materials[key]] = materials[key].albedo_color
 	var joints := {}
 	for spec in _part_specs():
 		var parent_name: String = spec["parent"]

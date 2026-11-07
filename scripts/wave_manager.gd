@@ -20,6 +20,8 @@ signal mini_boss_appeared(boss_name: String)
 signal mini_boss_health_changed(health: int, max_health: int)
 signal wave_cleared(wave: int)
 signal all_waves_cleared
+## Crafting is open during breaks after waves 1 to 14 (R-3, R-5).
+signal crafting_available_changed(available: bool)
 
 enum Phase { BREAK, DUMMIES, MINI_BOSS_COMING, MINI_BOSS, DONE }
 
@@ -59,6 +61,8 @@ const Config := preload("res://scripts/game_config.gd")
 
 var wave := 0
 var phase := Phase.BREAK
+## Debug shortcut F7 turns this on so the crafting menu opens at any time.
+var debug_crafting_anytime := false
 
 var _break_left := 0.0
 var _to_spawn := 0
@@ -67,12 +71,14 @@ var _dummies_left := 0
 var _boss_delay_left := 0.0
 var _spawn_points: Array[Vector3] = []
 var _rng := RandomNumberGenerator.new()
+var _crafting_was_available := false
 
 ## Holds every dummy and mini boss, alive or in pieces.
 @onready var _enemies: Node3D = $Enemies
 
 
 func _ready() -> void:
+	add_to_group("wave_manager")
 	_rng.randomize()
 	for i in spawn_point_count:
 		var angle := TAU * i / spawn_point_count
@@ -99,6 +105,18 @@ func _process(delta: float) -> void:
 			_boss_delay_left -= delta
 			if _boss_delay_left <= 0.0:
 				_spawn_mini_boss()
+	var crafting := can_craft()
+	if crafting != _crafting_was_available:
+		_crafting_was_available = crafting
+		crafting_available_changed.emit(crafting)
+
+
+## True during a crafting break: a break after waves 1 to 14. (The countdown
+## before the very first wave isn't a crafting break.)
+func can_craft() -> bool:
+	if debug_crafting_anytime:
+		return true
+	return phase == Phase.BREAK and wave >= 1 and wave <= last_break_wave
 
 
 func _unhandled_input(event: InputEvent) -> void:

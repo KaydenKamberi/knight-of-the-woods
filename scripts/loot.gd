@@ -1,0 +1,131 @@
+extends Node3D
+## A piece of loot (PRD R-13). It pops out of a defeated dummy, lands, then
+## bobs and spins on the ground. When the knight comes close it drifts towards
+## him, and walking over it puts it in the inventory. All on world time.
+
+const Config := preload("res://scripts/game_config.gd")
+## Loot closer than this (metres) drifts towards the knight.
+const MAGNET_RANGE := 2.5
+const MAGNET_SPEED := 6.0
+const RESTING_HEIGHT := 0.2
+const GRAVITY := 12.0
+
+var material_id := "wood"
+
+var _velocity := Vector3.ZERO
+var _landed := false
+var _age := 0.0
+var _model: Node3D
+var _knight: Node3D = null
+
+
+## Call right after adding the loot to the scene.
+func setup(id: String, start: Vector3, launch_velocity: Vector3) -> void:
+	material_id = id
+	global_position = start
+	_velocity = launch_velocity
+	_model = Node3D.new()
+	add_child(_model)
+	_build_model()
+
+
+func _physics_process(delta: float) -> void:
+	_age += delta
+	if not _landed:
+		_velocity.y -= GRAVITY * delta
+		global_position += _velocity * delta
+		if global_position.y <= RESTING_HEIGHT and _velocity.y < 0.0:
+			global_position.y = RESTING_HEIGHT
+			_landed = true
+	else:
+		_model.position.y = sin(_age * 3.0) * 0.06
+	_model.rotate_y(1.5 * delta)
+
+	if _knight == null:
+		_knight = get_tree().get_first_node_in_group("player") as Node3D
+		if _knight == null:
+			return
+	var to_knight := _knight.global_position + Vector3.UP * 0.5 - global_position
+	var distance := to_knight.length()
+	if distance < Config.LOOT_PICKUP_RANGE:
+		var inventory = get_tree().get_first_node_in_group("inventory")
+		if inventory != null:
+			inventory.add(material_id)
+		queue_free()
+	elif _landed and distance < MAGNET_RANGE:
+		global_position += to_knight.normalized() * minf(MAGNET_SPEED * delta, distance)
+
+
+func _build_model() -> void:
+	match material_id:
+		"wood":
+			var log_mesh := CylinderMesh.new()
+			log_mesh.top_radius = 0.08
+			log_mesh.bottom_radius = 0.08
+			log_mesh.height = 0.36
+			log_mesh.radial_segments = 6
+			log_mesh.rings = 0
+			_add(log_mesh, Color(0.48, 0.32, 0.18), Basis(Vector3.RIGHT, PI / 2.0))
+		"stone":
+			_add(_rock(0.13), Color(0.55, 0.55, 0.53))
+		"coal":
+			_add(_rock(0.12), Color(0.1, 0.1, 0.11))
+		"raw_iron":
+			var lump := BoxMesh.new()
+			lump.size = Vector3(0.18, 0.13, 0.15)
+			_add(lump, Color(0.5, 0.36, 0.3), Basis.from_euler(Vector3(0.3, 0.4, 0.2)), 0.4)
+		"iron":
+			var bar := BoxMesh.new()
+			bar.size = Vector3(0.24, 0.07, 0.11)
+			_add(bar, Color(0.75, 0.77, 0.8), Basis.IDENTITY, 0.7)
+		"string":
+			var spool := TorusMesh.new()
+			spool.inner_radius = 0.04
+			spool.outer_radius = 0.1
+			spool.rings = 8
+			spool.ring_segments = 6
+			_add(spool, Color(0.92, 0.88, 0.76), Basis(Vector3.RIGHT, PI / 2.0))
+		"cryo":
+			_add_crystal(Color(0.55, 0.85, 1.0), 0.22)
+		"ultra":
+			_add_crystal(Color(0.8, 0.35, 1.0), 0.3)
+			var light := OmniLight3D.new()
+			light.light_color = Color(0.8, 0.4, 1.0)
+			light.omni_range = 2.5
+			_model.add_child(light)
+
+
+func _rock(radius: float) -> SphereMesh:
+	var rock := SphereMesh.new()
+	rock.radius = radius
+	rock.height = radius * 1.6
+	rock.radial_segments = 6
+	rock.rings = 3
+	return rock
+
+
+## A glowing two-pointed crystal.
+func _add_crystal(color: Color, height: float) -> void:
+	for flip in [0.0, PI]:
+		var half := PrismMesh.new()
+		half.size = Vector3(height * 0.55, height * 0.5, height * 0.55)
+		var turn := Basis(Vector3.RIGHT, flip)
+		var offset := Vector3.UP * height * 0.25 * (1.0 if flip == 0.0 else -1.0)
+		_add(half, color, turn, 0.2, offset, true)
+
+
+func _add(mesh: PrimitiveMesh, color: Color, turn := Basis.IDENTITY, metallic := 0.0,
+		offset := Vector3.ZERO, glow := false) -> void:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.metallic = metallic
+	material.roughness = 0.6
+	if glow:
+		material.emission_enabled = true
+		material.emission = color
+		material.emission_energy_multiplier = 1.5
+	mesh.material = material
+	var instance := MeshInstance3D.new()
+	instance.mesh = mesh
+	instance.transform = Transform3D(turn, offset)
+	_model.add_child(instance)
