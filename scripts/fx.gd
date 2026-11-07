@@ -1,6 +1,6 @@
 extends RefCounted
 ## Particle effects (M7, 1E): dust, hit sparks, frost, ice, the blaster's trail
-## and explosion, grenade blasts, and furnace sparks.
+## and explosion, grenade blasts, critical hits, and furnace sparks.
 ##
 ## All of them are CPUParticles3D, which run on the normal (world-time) delta,
 ## so every effect slows down when world time does (T-3), and they work the same
@@ -80,6 +80,37 @@ static func grenade_blast(at: Vector3, radius: float, scene_root: Node) -> void:
 			"gravity": -7.0, "color": Color(1.0, 0.75, 0.3), "size": 0.1})
 	_burst("smoke", at + Vector3.UP * 0.4, {"amount": 14, "life": 1.3, "speed": Vector2(0.8, 2.0),
 			"gravity": 0.6, "spread": 70.0, "color": Color(0.35, 0.33, 0.3, 0.7), "size": 0.32, "fade": true})
+
+
+## A critical hit (G-2): a big golden flash, a shower of sparks and a "CRIT!"
+## pop-up that floats up and fades. The pop-up runs on real time so it can be
+## read even while the world is slowed.
+static func crit(at: Vector3) -> void:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null or tree.current_scene == null:
+		return
+	var gold := Color(1.0, 0.82, 0.25)
+	Effects.burst(at, 1.3, gold, tree.current_scene)
+	_burst("crit", at, {"amount": 26, "life": 0.5, "speed": Vector2(4.0, 8.0),
+			"gravity": -8.0, "color": Color(1.0, 0.95, 0.6), "size": 0.08})
+	var label := Label3D.new()
+	label.text = "CRIT!"
+	label.font_size = 110
+	label.outline_size = 22
+	label.modulate = gold
+	label.outline_modulate = Color(0.35, 0.1, 0.0)
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.pixel_size = 0.006
+	tree.current_scene.add_child(label)
+	label.global_position = at + Vector3.UP * 0.4
+	label.scale = Vector3.ONE * 1.5
+	var pop := label.create_tween().set_ignore_time_scale(true).set_parallel()
+	pop.tween_property(label, "scale", Vector3.ONE, 0.15).set_ease(Tween.EASE_OUT)
+	pop.tween_property(label, "position:y", label.position.y + 0.9, 0.9)
+	pop.tween_property(label, "modulate:a", 0.0, 0.4).set_delay(0.5)
+	pop.tween_property(label, "outline_modulate:a", 0.0, 0.4).set_delay(0.5)
+	pop.chain().tween_callback(label.queue_free)
 
 
 static func furnace_sparks(at: Vector3) -> void:

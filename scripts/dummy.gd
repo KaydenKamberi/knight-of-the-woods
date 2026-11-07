@@ -456,8 +456,10 @@ func _far_from_knight() -> bool:
 	return knight != null and global_position.distance_to(knight.global_position) > Config.FAR_AI_DISTANCE
 
 
+## Only the living, and only those enemies may go for (not the knight while
+## he's down in the secret bunker, which takes him out of "dummy_targets").
 func _is_good_target(candidate) -> bool:
-	return is_instance_valid(candidate) and candidate.is_alive()
+	return is_instance_valid(candidate) and candidate.is_alive() and candidate.is_in_group("dummy_targets")
 
 
 # --- The big boss's ground stomp ------------------------------------------------

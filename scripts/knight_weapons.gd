@@ -16,6 +16,8 @@ extends Node
 ## - Ultra blaster: lob an exploding round; 3 shots, then it breaks (R-12)
 ## - dagger and bat: quick melee swings; the bat knocks enemies back hard
 ## - grenades: throw one in an arc; it's used up (G-3)
+## - diamond sword, axe and dagger: like the sword, axe and dagger, but harder,
+##   and with a 1 in 12 chance of a critical hit for double damage (G-2)
 ##
 ## Damage and timings come from game_config.gd. Cooldowns run on world time,
 ## and every attack gives world time a short bump (T-2).
@@ -206,7 +208,18 @@ func _melee(id: String, stats: Dictionary) -> void:
 			if enemy.is_alive():
 				enemy.freeze_head()
 		else:
-			enemy.take_hit(damage, origin, stats.get("push", 4.0 if id != "sword" else 3.0))
+			enemy.take_hit(roll_crit(stats, damage, enemy.global_position + Vector3.UP * 1.3 * enemy.size_scale),
+					origin, stats.get("push", 4.0 if id != "sword" else 3.0))
+
+
+## Critical hits (G-2): a weapon marked "crit" (the musket and the diamond
+## weapons) has a 1 in 12 chance to do double damage, with a big flash and a
+## "CRIT!" pop-up at `at`. Returns the damage to deal.
+static func roll_crit(stats: Dictionary, damage: int, at: Vector3) -> int:
+	if not stats.get("crit", false) or randf() >= Config.CRIT_CHANCE:
+		return damage
+	Fx.crit(at)
+	return damage * Config.CRIT_MULTIPLIER
 
 
 func _shoot_arrow(stats: Dictionary) -> void:

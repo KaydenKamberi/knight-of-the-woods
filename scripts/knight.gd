@@ -90,6 +90,8 @@ var first_person := false
 var shift_lock := false
 var health := 0
 var knives := 0
+## True while the knight is down in the secret bunker. Enemies can't target him there.
+var in_bunker := false
 
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _pitch := deg_to_rad(-15.0)
@@ -108,6 +110,7 @@ var _was_on_floor := true
 var _fall_speed := 0.0
 var _dust_left := 0.0
 var _armor_shown := false
+var _traveling := false
 var _armor_frost: CPUParticles3D
 
 ## The Weapons child node (knight_weapons.gd): hotbar, attacks and the hammer's specials.
@@ -360,6 +363,42 @@ func use_in_reach() -> void:
 	_clear_prompt()
 	_set_knives(knives + 1)
 	WorldTime.bump()
+
+
+## Goes through a bunker entrance, ladder or tunnel (B-1, B-2): the screen fades
+## to black, the knight comes out at `spot` facing `facing`, and it fades back
+## in. Inside the bunker enemies can't target him and only torches light the
+## room. Tamed animals come along.
+func travel_to(spot: Vector3, facing: Vector3, into_bunker: bool) -> void:
+	if _dead or _traveling:
+		return
+	_traveling = true
+	_menu_open = true
+	_clear_prompt()
+	WorldTime.bump()
+	var hud = get_tree().get_first_node_in_group("hud")
+	if hud != null:
+		hud.fade_through_black(_arrive.bind(spot, facing, into_bunker))
+	else:
+		_arrive(spot, facing, into_bunker)
+
+
+func _arrive(spot: Vector3, facing: Vector3, into_bunker: bool) -> void:
+	global_position = spot
+	velocity = Vector3.ZERO
+	var angle := atan2(-facing.x, -facing.z)
+	_yaw.rotation.y = angle
+	_model.rotation.y = angle
+	in_bunker = into_bunker
+	if into_bunker:
+		remove_from_group("dummy_targets")
+	else:
+		add_to_group("dummy_targets")
+	get_tree().call_group("world_look", "set_underground", into_bunker)
+	get_tree().call_group("floating_leaves", "set_underground", into_bunker)
+	get_tree().call_group("companions", "follow_through", spot)
+	_traveling = false
+	_menu_open = false
 
 
 ## Pushed away by a big blow, like the big boss's stomp.

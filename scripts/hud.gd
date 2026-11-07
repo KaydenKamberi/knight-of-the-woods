@@ -50,6 +50,7 @@ var _crafting_menu: CraftingMenu
 var _furnace_menu: FurnaceMenu
 var _pause_menu: PauseMenu
 var _armor_badge: HBoxContainer
+var _fade: ColorRect
 ## True during the victory camera pan (no pausing then).
 var _in_cutscene := false
 var _final_wave := false
@@ -115,6 +116,13 @@ func _ready() -> void:
 	_crafting_menu.visible = false
 	_crafting_menu.close_requested.connect(close_crafting)
 	add_child(_crafting_menu)
+	_fade = ColorRect.new()
+	_fade.name = "Fade"
+	_fade.color = Color.BLACK
+	_fade.modulate.a = 0.0
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_fade)
+	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_set_touch_mode(DisplayServer.is_touchscreen_available())
 	_watch_inventory.call_deferred()
 
@@ -400,6 +408,16 @@ func on_rescue_arrived(count: int) -> void:
 func on_soldier_fell(role: String) -> void:
 	var names := {"archer": "An archer", "spear": "A spearman", "sword": "A sword fighter"}
 	show_toast("%s has fallen" % names.get(role, "A soldier"))
+
+
+## Fades the screen to black, calls `midpoint` (the knight moves through a bunker
+## entrance), then fades back in. Real time, so it's quick even in slow motion.
+func fade_through_black(midpoint: Callable) -> void:
+	var fade := _fade.create_tween().set_ignore_time_scale(true)
+	fade.tween_property(_fade, "modulate:a", 1.0, 0.3)
+	fade.tween_callback(midpoint)
+	fade.tween_interval(0.2)
+	fade.tween_property(_fade, "modulate:a", 0.0, 0.4)
 
 
 ## A short message on the right side of the screen that fades away.

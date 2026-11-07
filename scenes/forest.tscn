@@ -13,6 +13,7 @@
 [ext_resource type="PackedScene" path="res://scenes/world_look.tscn" id="11_look"]
 [ext_resource type="Script" path="res://scripts/floating_leaves.gd" id="12_leaves"]
 [ext_resource type="Script" path="res://scripts/orientation_hint.gd" id="13_hint"]
+[ext_resource type="Script" path="res://scripts/bunker.gd" id="14_bunker"]
 
 [node name="Forest" type="Node3D"]
 
@@ -27,6 +28,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -5)
 [node name="Castle" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 22)
 script = ExtResource("9_castle")
+
+[node name="Bunker" type="Node3D" parent="."]
+script = ExtResource("14_bunker")
 
 [node name="Knight" parent="." instance=ExtResource("2_knight")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 24)

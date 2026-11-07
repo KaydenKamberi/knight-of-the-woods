@@ -10,6 +10,8 @@ extends Node
 ## - F8: get a pile of everything (10 of each regular material, 10 gunpowder,
 ##   5 iron, 4 Cryo Crystals, 1 Ultra Crystal, 3 meat and 3 berries) to test crafting.
 ## - F9: let crafting and smelting open at any time (press again to turn off).
+## - F10: get the bunker chest's haul (6 diamonds, 3 titanium) without going
+##   down there, to test the diamond weapons and the musket.
 ##
 ## The wave shortcuts live on the WaveManager: F2 skips to the next wave, F3
 ## ends a break, brings out the mini boss, or sends wave 20's next group.
@@ -34,6 +36,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_F8:
 			_give({"wood": 10, "stone": 10, "raw_iron": 10, "coal": 10, "string": 10,
 					"iron": 5, "cryo": 4, "ultra": 1, "gunpowder": 10, "meat": 3, "berries": 3})
+		KEY_F10:
+			_give({"diamond": 6, "titanium": 3})
 		KEY_F9:
 			var waves = get_tree().get_first_node_in_group("wave_manager")
 			if waves != null:

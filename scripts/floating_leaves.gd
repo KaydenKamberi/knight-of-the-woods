@@ -59,3 +59,8 @@ func apply_graphics() -> void:
 	_leaves.visible = count > 0
 	if count > 0:
 		_leaves.amount = count
+
+
+## No leaves drift around inside the bunker.
+func set_underground(enabled: bool) -> void:
+	visible = not enabled

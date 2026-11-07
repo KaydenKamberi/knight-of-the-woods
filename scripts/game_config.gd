@@ -117,6 +117,23 @@ const CASTLE_SPAWN_KEEP_OUT := 17.0
 ## Where the knight starts: in the courtyard, facing the gate.
 const KNIGHT_START := Vector3(0.0, 0.0, 24.0)
 
+# --- The secret bunker (B-1 to B-4) ------------------------------------------------
+
+## The bunker room. It sits far outside the forest, where nothing outside can see
+## or reach it; the trapdoor and the hidden castle door take the knight there.
+const BUNKER_CENTER := Vector3(0.0, 0.0, -160.0)
+## Inside size: width (x), height (y) and depth (z), in metres.
+const BUNKER_SIZE := Vector3(11.0, 3.4, 8.0)
+## The trapdoor, half hidden by leaves and bushes at the edge of the clearing.
+const TRAPDOOR_SPOT := Vector3(-4.2, 0.0, -1.0)
+## The hidden door, measured from the middle of the courtyard: a loose stone on
+## the inside of the left (west) wall.
+const CASTLE_DOOR_OFFSET := Vector3(-7.47, 0.0, 2.0)
+## What the chest holds (B-3). It's never refilled during a run.
+const BUNKER_CHEST := {"diamond": 6, "titanium": 3}
+## How close the knight has to be to use an entrance, a ladder or the chest, in metres.
+const PASSAGE_USE_RANGE := 1.8
+
 # --- The army (A-1, A-2, A-6) ----------------------------------------------------
 
 ## Soldiers at the start of a run, split evenly between the three roles.
@@ -152,11 +169,12 @@ const ARROW_SPEED := 30.0
 
 ## Every material, in the order the HUD and crafting menu list them.
 const MATERIALS := ["wood", "stone", "raw_iron", "iron", "coal", "string", "gunpowder",
-		"cryo", "ultra", "meat", "berries"]
+		"cryo", "ultra", "diamond", "titanium", "meat", "berries"]
 const MATERIAL_NAMES := {
 	"wood": "Wood", "stone": "Stone", "raw_iron": "Raw iron", "iron": "Iron", "coal": "Coal",
 	"string": "String", "cryo": "Cryo Crystal", "ultra": "Ultra Crystal",
 	"gunpowder": "Gunpowder", "meat": "Meat", "berries": "Berries",
+	"diamond": "Diamond", "titanium": "Titanium",
 }
 ## What a regular enemy can drop, and how likely each is (bigger = more common).
 ## Gunpowder drops about as often as coal (N-2); meat is a taming food (N-4).
@@ -190,6 +208,9 @@ const RECIPES := {
 	"dagger": {"stone": 1, "wood": 1},
 	"bat": {"wood": 2},
 	"grenade": {"gunpowder": 2, "iron": 1},
+	"diamond_sword": {"diamond": 3, "wood": 1},
+	"diamond_axe": {"diamond": 3, "wood": 2},
+	"diamond_dagger": {"diamond": 2, "wood": 1},
 	"cryo_armor": {"iron": 3, "stone": 3, "cryo": 2},
 }
 ## Items that can be crafted again and again: each craft adds more uses.
@@ -219,7 +240,17 @@ const WEAPONS := {
 	"dagger": {"name": "Dagger", "kind": "melee", "damage": 20, "reach": 1.7, "cooldown": 0.3, "sweep": false},
 	"bat": {"name": "Bat", "kind": "melee", "damage": 10, "reach": 2.0, "cooldown": 0.45, "sweep": false, "push": 7.0},
 	"grenade": {"name": "Grenades", "kind": "grenade", "cooldown": 0.8},
+	"diamond_sword": {"name": "Diamond sword", "kind": "melee", "damage": 65, "reach": 2.1, "cooldown": 0.4,
+			"sweep": false, "crit": true},
+	"diamond_axe": {"name": "Diamond axe", "kind": "melee", "damage": 85, "reach": 2.1, "cooldown": 1.0,
+			"sweep": true, "crit": true},
+	"diamond_dagger": {"name": "Diamond dagger", "kind": "melee", "damage": 25, "reach": 1.7, "cooldown": 0.3,
+			"sweep": false, "crit": true},
 }
+## Critical hits (G-2): weapons marked "crit" have this chance per hit (1 in 12)
+## of doing CRIT_MULTIPLIER times their damage.
+const CRIT_CHANCE := 1.0 / 12.0
+const CRIT_MULTIPLIER := 2
 ## Cryo dagger (R-8): a frozen head shatters on the next dagger hit and defeats a
 ## regular dummy. A mini boss takes this much damage instead (shattering one
 ## outright would make the dagger beat every boss in two hits).

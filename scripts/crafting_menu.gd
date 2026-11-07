@@ -33,6 +33,9 @@ const DESCRIPTIONS := {
 	"dagger": "20 damage · very fast stabs",
 	"bat": "10 damage · knocks enemies far back",
 	"grenade": "Throw it: wipes out regular enemies in the blast · used up",
+	"diamond_sword": "65 damage · fast · 1 in 12 crits for double",
+	"diamond_axe": "85 damage · slow, hits everyone in front · 1 in 12 crits",
+	"diamond_dagger": "25 damage · very fast · 1 in 12 crits for double",
 	"cryo_armor": "Reflects 25% of melee damage and slows attackers",
 }
 

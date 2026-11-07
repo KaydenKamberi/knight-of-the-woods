@@ -9,6 +9,7 @@ const STEEL := Color(0.75, 0.77, 0.82)
 const DARK := Color(0.25, 0.25, 0.28)
 const ICE := Color(0.55, 0.85, 1.0)
 const ULTRA := Color(0.8, 0.35, 1.0)
+const DIAMOND := Color(0.78, 0.95, 1.0)
 
 
 ## Builds the model for `weapon` ("knife", "spear", ...). `layer` is the render
@@ -42,6 +43,17 @@ static func build(weapon: String, layer: int) -> Node3D:
 		"cryo_hammer":
 			_box(root, Vector3(0.05, 0.05, 0.95), WOOD, Vector3(0, 0, -0.35))
 			_box(root, Vector3(0.3, 0.22, 0.24), ICE, Vector3(0, 0, -0.85), true, true)
+		"diamond_sword":
+			_box(root, Vector3(0.035, 0.035, 0.14), DARK, Vector3(0, 0, 0.05))
+			_box(root, Vector3(0.2, 0.035, 0.045), Color(0.85, 0.68, 0.25), Vector3(0, 0, -0.03))
+			_box(root, Vector3(0.07, 0.018, 0.8), DIAMOND, Vector3(0, 0, -0.45), true, true)
+		"diamond_axe":
+			_box(root, Vector3(0.04, 0.04, 0.85), WOOD, Vector3(0, 0, -0.32))
+			_box(root, Vector3(0.045, 0.3, 0.22), DIAMOND, Vector3(0, 0.13, -0.64), true, true)
+		"diamond_dagger":
+			_box(root, Vector3(0.03, 0.03, 0.1), WOOD, Vector3(0, 0, 0.04))
+			_box(root, Vector3(0.11, 0.025, 0.03), Color(0.85, 0.68, 0.25), Vector3(0, 0, -0.02))
+			_box(root, Vector3(0.045, 0.014, 0.28), DIAMOND, Vector3(0, 0, -0.17), true, true)
 		"dagger":
 			_box(root, Vector3(0.03, 0.03, 0.1), WOOD, Vector3(0, 0, 0.04))
 			_box(root, Vector3(0.11, 0.025, 0.03), DARK, Vector3(0, 0, -0.02))
