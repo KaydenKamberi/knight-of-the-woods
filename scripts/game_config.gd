@@ -307,6 +307,43 @@ const ARMOR_SLOW := 0.5
 const ARMOR_SLOW_TIME := 1.0
 
 
+# --- Animals and taming (H-1 to H-6) -------------------------------------------------
+
+## How many of each wild animal roam the forest. Missing ones (killed, or tamed)
+## are topped back up whenever a wave is cleared.
+const WILD_ANIMALS := {"bear": 2, "wolf": 3, "deer": 3, "bunny": 4}
+## Per animal, once tamed: health, damage per hit, running speed (m/s), attack
+## reach (m), seconds between attacks, wind-up before a hit lands (s), and the
+## taming food (H-2, H-4). Health values are starting guesses to tune.
+const ANIMALS := {
+	"bear": {"name": "Bear", "health": 300, "damage": 90, "speed": 4.2, "range": 1.9,
+			"cooldown": 1.6, "windup": 0.45, "food": "meat"},
+	"wolf": {"name": "Wolf", "health": 150, "damage": 50, "speed": 6.5, "range": 1.5,
+			"cooldown": 1.0, "windup": 0.25, "food": "meat"},
+	"deer": {"name": "Deer", "health": 120, "damage": 20, "speed": 5.0, "range": 1.6,
+			"cooldown": 1.2, "windup": 0.2, "food": "berries"},
+	"bunny": {"name": "Bunny", "health": 50, "damage": 5, "speed": 8.0, "range": 1.0,
+			"cooldown": 0.6, "windup": 0.1, "food": "berries"},
+}
+## The most animals the knight can have tamed at once (H-3).
+const MAX_TAMED := 2
+## How close the knight has to be to an animal to tame it, in metres.
+const TAME_RANGE := 2.6
+## Wild animals amble about at this speed.
+const WILD_WANDER_SPEED := 1.2
+## A wild bear or wolf that's hit chases the knight for this long (world-time
+## seconds), hitting for this share of its tamed damage. Deer and bunnies run away.
+const ANIMAL_ANGRY_TIME := 12.0
+const WILD_DAMAGE_SHARE := 0.3
+## Tamed animals go for enemies within this many metres of the knight, and
+## otherwise stay this close to him.
+const ANIMAL_GUARD_RANGE := 16.0
+const ANIMAL_FOLLOW_DISTANCE := 3.5
+## A deer charges (at this many times its speed) at enemies closer than this.
+const DEER_CHARGE_SPEED := 2.0
+const DEER_CHARGE_DISTANCE := 6.0
+
+
 # --- The look: palette and toon shading (M7 art pass) -----------------------------
 
 ## One shared palette, used by every material in the game.

@@ -209,9 +209,14 @@ func _melee(id: String, stats: Dictionary) -> void:
 	var reach: float = stats["reach"]
 	var damage: int = stats["damage"]
 
-	# Everyone in front of the knight within reach, nearest first.
+	# Everyone in front of the knight within reach, nearest first. Wild animals
+	# can be hit too (bears and wolves fight back, H-1).
 	var in_reach: Array = []
-	for enemy in _enemies_within(origin, reach + 1.5):
+	var candidates := _enemies_within(origin, reach + 1.5)
+	for animal in get_tree().get_nodes_in_group("wild_animals"):
+		if animal.is_alive() and animal.global_position.distance_to(origin) <= reach + 1.5:
+			candidates.append(animal)
+	for enemy in candidates:
 		var to_enemy: Vector3 = enemy.global_position - origin
 		to_enemy.y = 0.0
 		var distance: float = to_enemy.length() - 0.3 * enemy.size_scale
@@ -223,6 +228,9 @@ func _melee(id: String, stats: Dictionary) -> void:
 
 	for entry in in_reach:
 		var enemy = entry[1]
+		if enemy.is_in_group("wild_animals"):
+			enemy.take_hit(roll_crit(stats, damage, enemy.global_position + Vector3.UP), origin, 3.0)
+			continue
 		if id == "cryo_dagger":
 			# R-8: a frozen head shatters; otherwise this slash freezes it.
 			if enemy.has_frozen_head():

@@ -14,6 +14,7 @@
 [ext_resource type="Script" path="res://scripts/floating_leaves.gd" id="12_leaves"]
 [ext_resource type="Script" path="res://scripts/orientation_hint.gd" id="13_hint"]
 [ext_resource type="Script" path="res://scripts/bunker.gd" id="14_bunker"]
+[ext_resource type="Script" path="res://scripts/animals.gd" id="15_animals"]
 
 [node name="Forest" type="Node3D"]
 
@@ -31,6 +32,9 @@ script = ExtResource("9_castle")
 
 [node name="Bunker" type="Node3D" parent="."]
 script = ExtResource("14_bunker")
+
+[node name="Animals" type="Node3D" parent="."]
+script = ExtResource("15_animals")
 
 [node name="Knight" parent="." instance=ExtResource("2_knight")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 24)
@@ -87,3 +91,4 @@ script = ExtResource("13_hint")
 [connection signal="crafting_available_changed" from="WaveManager" to="HUD" method="on_crafting_available_changed"]
 [connection signal="crafting_menu_toggled" from="HUD" to="Knight" method="set_menu_open"]
 [connection signal="wave_cleared" from="WaveManager" to="Knight" method="heal_full"]
+[connection signal="companions_changed" from="Animals" to="HUD" method="set_companions"]

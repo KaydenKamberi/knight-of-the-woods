@@ -51,6 +51,11 @@ var _furnace_menu: FurnaceMenu
 var _pause_menu: PauseMenu
 var _armor_badge: HBoxContainer
 var _fade: ColorRect
+var _companions_label: Label
+var _release_panel: Control
+var _release_title: Label
+var _release_buttons: VBoxContainer
+var _release_callback := Callable()
 var _reload_bar: ProgressBar
 ## True during the victory camera pan (no pausing then).
 var _in_cutscene := false
@@ -118,6 +123,8 @@ func _ready() -> void:
 	_crafting_menu.close_requested.connect(close_crafting)
 	add_child(_crafting_menu)
 	_build_reload_bar()
+	_build_companions_label()
+	_build_release_panel()
 	_fade = ColorRect.new()
 	_fade.name = "Fade"
 	_fade.color = Color.BLACK
@@ -130,6 +137,11 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _release_panel.visible:
+		if event.is_action_pressed("pause"):
+			_on_release_button(-1)
+			get_viewport().set_input_as_handled()
+		return
 	if _furnace_menu.visible:
 		# E (or Esc) closes the furnace panel.
 		if event.is_action_pressed("interact") or event.is_action_pressed("pause"):
@@ -221,6 +233,96 @@ func _build_reload_bar() -> void:
 	label.offset_bottom = 32.0
 	label.offset_left = -80.0
 	label.offset_right = 80.0
+
+
+# --- Tamed animals (H-3, H-4) ------------------------------------------------------
+
+## Who's tamed and how they're doing, under the health bar. Connected to the Animals node.
+func set_companions(text: String) -> void:
+	_companions_label.text = "Animals: " + text
+	_companions_label.visible = not text.is_empty()
+
+
+## H-3: the knight already has 2 animals. Asks which one to let go so `new_name`
+## can be tamed, then calls `callback` with its index (or -1 to keep them both).
+func ask_release(names: Array[String], new_name: String, callback: Callable) -> void:
+	if _release_panel.visible or _game_over.visible:
+		callback.call(-1)
+		return
+	close_crafting()
+	close_furnace_menu()
+	_release_callback = callback
+	_release_title.text = "You can keep %d animals at once.\nLet one go to tame the %s?" % [
+			Config.MAX_TAMED, new_name.to_lower()]
+	for child in _release_buttons.get_children():
+		child.queue_free()
+	for i in names.size():
+		var button := Button.new()
+		button.text = "Let the %s go" % names[i].to_lower()
+		button.pressed.connect(_on_release_button.bind(i))
+		_release_buttons.add_child(button)
+	var keep := Button.new()
+	keep.text = "Keep them both"
+	keep.pressed.connect(_on_release_button.bind(-1))
+	_release_buttons.add_child(keep)
+	_release_panel.visible = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_touch_controls.visible = false
+	crafting_menu_toggled.emit(true)
+	keep.grab_focus.call_deferred()
+
+
+func _on_release_button(index: int) -> void:
+	if not _release_panel.visible:
+		return
+	_release_panel.visible = false
+	_touch_controls.visible = touch_mode and not _game_over.visible
+	crafting_menu_toggled.emit(false)
+	var callback := _release_callback
+	_release_callback = Callable()
+	if callback.is_valid():
+		callback.call(index)
+
+
+func _build_companions_label() -> void:
+	_companions_label = Label.new()
+	_companions_label.name = "CompanionsLabel"
+	_companions_label.visible = false
+	_companions_label.add_theme_font_size_override("font_size", 17)
+	_companions_label.add_theme_color_override("font_color", Color(0.75, 0.95, 0.7))
+	_companions_label.add_theme_constant_override("outline_size", 5)
+	_companions_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_status.add_child(_companions_label)
+
+
+func _build_release_panel() -> void:
+	_release_panel = Control.new()
+	_release_panel.name = "ReleasePanel"
+	_release_panel.visible = false
+	_release_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(_release_panel)
+	_release_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var dim := ColorRect.new()
+	dim.color = Color(0.02, 0.02, 0.03, 0.6)
+	_release_panel.add_child(dim)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var center := CenterContainer.new()
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_release_panel.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var panel := PanelContainer.new()
+	center.add_child(panel)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 12)
+	panel.add_child(column)
+	_release_title = Label.new()
+	_release_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_release_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_release_title.custom_minimum_size = Vector2(420, 0)
+	column.add_child(_release_title)
+	_release_buttons = VBoxContainer.new()
+	_release_buttons.add_theme_constant_override("separation", 8)
+	column.add_child(_release_buttons)
 
 
 func _build_armor_badge() -> void:
@@ -540,6 +642,7 @@ func on_army_marched_out(count: int) -> void:
 ## Clears the screen for the camera pan over the castle.
 func hide_for_cutscene() -> void:
 	_in_cutscene = true
+	_on_release_button(-1)
 	close_crafting()
 	close_furnace_menu()
 	for node: CanvasItem in [_status, _wave_info, _big_boss_panel, _hotbar, _crosshair, _reload_bar,
@@ -565,6 +668,7 @@ func show_victory(stats: Dictionary, soldiers_left: int, army_size: int) -> void
 # -----------------------------------------------------------------------------
 
 func _show_end_screen(title: String, subtitle: String) -> void:
+	_on_release_button(-1)
 	close_crafting()
 	close_furnace_menu()
 	_end_title.text = title

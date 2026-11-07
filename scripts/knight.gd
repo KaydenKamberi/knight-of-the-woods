@@ -396,7 +396,7 @@ func _arrive(spot: Vector3, facing: Vector3, into_bunker: bool) -> void:
 		add_to_group("dummy_targets")
 	get_tree().call_group("world_look", "set_underground", into_bunker)
 	get_tree().call_group("floating_leaves", "set_underground", into_bunker)
-	get_tree().call_group("companions", "follow_through", spot)
+	get_tree().call_group("companions", "follow_through", spot, into_bunker)
 	_traveling = false
 	_menu_open = false
 
