@@ -54,6 +54,13 @@ static func build(weapon: String, layer: int) -> Node3D:
 			_box(root, Vector3(0.03, 0.03, 0.1), WOOD, Vector3(0, 0, 0.04))
 			_box(root, Vector3(0.11, 0.025, 0.03), Color(0.85, 0.68, 0.25), Vector3(0, 0, -0.02))
 			_box(root, Vector3(0.045, 0.014, 0.28), DIAMOND, Vector3(0, 0, -0.17), true, true)
+		"musket":
+			# A long wooden stock with a dark barrel and brass bands.
+			_box(root, Vector3(0.07, 0.12, 0.42), WOOD, Vector3(0, -0.02, 0.12))
+			_box(root, Vector3(0.06, 0.07, 0.6), WOOD, Vector3(0, 0.01, -0.38))
+			_box(root, Vector3(0.035, 0.035, 1.05), DARK, Vector3(0, 0.06, -0.48), true)
+			for z in [-0.2, -0.62]:
+				_box(root, Vector3(0.075, 0.08, 0.03), Color(0.85, 0.68, 0.25), Vector3(0, 0.03, z), true)
 		"dagger":
 			_box(root, Vector3(0.03, 0.03, 0.1), WOOD, Vector3(0, 0, 0.04))
 			_box(root, Vector3(0.11, 0.025, 0.03), DARK, Vector3(0, 0, -0.02))

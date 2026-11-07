@@ -211,6 +211,7 @@ const RECIPES := {
 	"diamond_sword": {"diamond": 3, "wood": 1},
 	"diamond_axe": {"diamond": 3, "wood": 2},
 	"diamond_dagger": {"diamond": 2, "wood": 1},
+	"musket": {"titanium": 3, "gunpowder": 4},
 	"cryo_armor": {"iron": 3, "stone": 3, "cryo": 2},
 }
 ## Items that can be crafted again and again: each craft adds more uses.
@@ -246,7 +247,13 @@ const WEAPONS := {
 			"sweep": true, "crit": true},
 	"diamond_dagger": {"name": "Diamond dagger", "kind": "melee", "damage": 25, "reach": 1.7, "cooldown": 0.3,
 			"sweep": false, "crit": true},
+	"musket": {"name": "Musket", "kind": "musket", "damage": 90, "cooldown": 0.2, "crit": true},
 }
+## Musket (G-1): unlimited shots, but every shot needs MUSKET_RELOAD_TIME seconds
+## to reload. The reload counts real seconds, not world time, so it reloads at
+## full speed while the world is slowed. The ball flies (and drops a little) on world time.
+const MUSKET_RELOAD_TIME := 3.0
+const MUSKET_BALL_SPEED := 60.0
 ## Critical hits (G-2): weapons marked "crit" have this chance per hit (1 in 12)
 ## of doing CRIT_MULTIPLIER times their damage.
 const CRIT_CHANCE := 1.0 / 12.0

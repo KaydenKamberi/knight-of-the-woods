@@ -113,6 +113,14 @@ static func crit(at: Vector3) -> void:
 	pop.chain().tween_callback(label.queue_free)
 
 
+## The musket's shot: a flash and a puff of grey smoke at the muzzle.
+static func musket_smoke(at: Vector3) -> void:
+	_burst("muzzle", at, {"amount": 10, "life": 0.15, "speed": Vector2(2.0, 4.0),
+			"gravity": 0.0, "spread": 25.0, "color": Color(1.0, 0.85, 0.45), "size": 0.06})
+	_burst("musket_smoke", at, {"amount": 10, "life": 1.1, "speed": Vector2(0.4, 1.2),
+			"gravity": 0.5, "spread": 60.0, "color": Color(0.8, 0.8, 0.78, 0.7), "size": 0.22, "fade": true})
+
+
 static func furnace_sparks(at: Vector3) -> void:
 	_burst("embers", at, {"amount": 16, "life": 0.9, "speed": Vector2(1.5, 3.0), "gravity": -2.5,
 			"spread": 35.0, "color": Color(1.0, 0.6, 0.2), "size": 0.05})

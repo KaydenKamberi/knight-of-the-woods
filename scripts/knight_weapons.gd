@@ -16,6 +16,8 @@ extends Node
 ## - Ultra blaster: lob an exploding round; 3 shots, then it breaks (R-12)
 ## - dagger and bat: quick melee swings; the bat knocks enemies back hard
 ## - grenades: throw one in an arc; it's used up (G-3)
+## - musket: fire a heavy ball at the crosshair; unlimited shots, 3 s reload in
+##   real time, so it reloads at full speed in slow motion (G-1); it can crit
 ## - diamond sword, axe and dagger: like the sword, axe and dagger, but harder,
 ##   and with a 1 in 12 chance of a critical hit for double damage (G-2)
 ##
@@ -33,6 +35,7 @@ const ARROW_SCENE := preload("res://scenes/arrow.tscn")
 const Pool := preload("res://scripts/pool.gd")
 const BLASTER_ROUND := preload("res://scripts/blaster_round.gd")
 const GRENADE := preload("res://scripts/grenade.gd")
+const MUSKET_BALL := preload("res://scripts/musket_ball.gd")
 const ICE := Color(0.55, 0.85, 1.0)
 ## A melee target has to be within this angle of where the knight is aiming (as a dot product).
 const MELEE_ARC := 0.35
@@ -49,6 +52,8 @@ var _held: Node3D
 var _held_id := ""
 var _cooldown_left := 0.0
 var _spin_cooldown_left := 0.0
+## Real seconds until the musket is loaded again (G-1).
+var _reload_left := 0.0
 
 
 func _ready() -> void:
@@ -64,6 +69,20 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	_cooldown_left = maxf(_cooldown_left - delta, 0.0)
 	_spin_cooldown_left = maxf(_spin_cooldown_left - delta, 0.0)
+
+
+func _process(_delta: float) -> void:
+	# The musket reloads in real time, so slowed world time doesn't slow it (G-1).
+	_reload_left = maxf(_reload_left - WorldTime.real_delta, 0.0)
+
+
+## How loaded the musket is, from 0.0 (just fired) to 1.0 (ready).
+func musket_loaded_fraction() -> float:
+	return 1.0 - _reload_left / Config.MUSKET_RELOAD_TIME
+
+
+func musket_reloading() -> bool:
+	return _reload_left > 0.0
 
 
 func slots() -> Array[String]:
@@ -104,6 +123,8 @@ func hotbar_info() -> Array[Dictionary]:
 				detail = "%d shots" % _inventory.blaster_shots
 			"grenade":
 				detail = "%d left" % _inventory.grenades
+			"musket":
+				detail = "ready" if _reload_left == 0.0 else "reloading %.1fs" % _reload_left
 			"cryo_hammer":
 				var spin := "ready" if _spin_cooldown_left == 0.0 else "%ds" % ceili(_spin_cooldown_left)
 				detail = "spin %s · slam %s" % [spin, "ready" if slam_ready else "used"]
@@ -137,6 +158,9 @@ func attack() -> void:
 			_fire_blaster()
 		"grenade":
 			_throw_grenade()
+		"musket":
+			if not _fire_musket(stats):
+				return
 	_cooldown_left = stats["cooldown"]
 
 
@@ -245,6 +269,25 @@ func _fire_blaster() -> void:
 	# Lobbed like a grenade: forward and a little up.
 	round_node.launch(start, direction * 20.0 + Vector3.UP * 3.0)
 	_inventory.use_blaster_shot()
+
+
+## Fires the musket if it's loaded. Returns false while it's still reloading.
+func _fire_musket(stats: Dictionary) -> bool:
+	if _reload_left > 0.0:
+		return false
+	WorldTime.bump()
+	_knight.play_swing()
+	var start: Vector3 = _knight.throw_start()
+	var direction: Vector3 = _knight.throw_direction(start)
+	var damage: int = stats["damage"]
+	var crit: bool = stats.get("crit", false) and randf() < Config.CRIT_CHANCE
+	var ball = MUSKET_BALL.new()
+	get_tree().current_scene.add_child(ball)
+	ball.launch(start, direction, damage * Config.CRIT_MULTIPLIER if crit else damage, crit)
+	Fx.musket_smoke(start + direction * 0.4)
+	_reload_left = Config.MUSKET_RELOAD_TIME
+	hotbar_changed.emit()
+	return true
 
 
 func _throw_grenade() -> void:

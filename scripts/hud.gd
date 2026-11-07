@@ -51,6 +51,7 @@ var _furnace_menu: FurnaceMenu
 var _pause_menu: PauseMenu
 var _armor_badge: HBoxContainer
 var _fade: ColorRect
+var _reload_bar: ProgressBar
 ## True during the victory camera pan (no pausing then).
 var _in_cutscene := false
 var _final_wave := false
@@ -116,6 +117,7 @@ func _ready() -> void:
 	_crafting_menu.visible = false
 	_crafting_menu.close_requested.connect(close_crafting)
 	add_child(_crafting_menu)
+	_build_reload_bar()
 	_fade = ColorRect.new()
 	_fade.name = "Fade"
 	_fade.color = Color.BLACK
@@ -186,6 +188,39 @@ func set_knives(count: int, max_count: int) -> void:
 ## Shows the Cryo armour icon while the armour is on (X-2). Connected to the knight.
 func set_armor(equipped: bool) -> void:
 	_armor_badge.visible = equipped
+
+
+## A small "Reloading" bar under the crosshair, shown while the musket reloads.
+func _build_reload_bar() -> void:
+	_reload_bar = ProgressBar.new()
+	_reload_bar.name = "ReloadBar"
+	_reload_bar.min_value = 0.0
+	_reload_bar.max_value = 1.0
+	_reload_bar.step = 0.0
+	_reload_bar.show_percentage = false
+	_reload_bar.visible = false
+	_reload_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.95, 0.78, 0.35)
+	fill.set_corner_radius_all(4)
+	_reload_bar.add_theme_stylebox_override("fill", fill)
+	add_child(_reload_bar)
+	_reload_bar.set_anchors_preset(Control.PRESET_CENTER)
+	_reload_bar.offset_left = -80.0
+	_reload_bar.offset_right = 80.0
+	_reload_bar.offset_top = 36.0
+	_reload_bar.offset_bottom = 46.0
+	var label := Label.new()
+	label.text = "Reloading"
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", 15)
+	label.add_theme_constant_override("outline_size", 5)
+	_reload_bar.add_child(label)
+	label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	label.offset_top = 10.0
+	label.offset_bottom = 32.0
+	label.offset_left = -80.0
+	label.offset_right = 80.0
 
 
 func _build_armor_badge() -> void:
@@ -386,6 +421,10 @@ func _update_hotbar() -> void:
 		slot.text = text
 		slot.add_theme_stylebox_override("normal", _selected_style if entry["selected"] else _slot_style)
 	var equipped: String = knight.weapons.equipped()
+	# The musket's reload bar under the crosshair (G-1).
+	_reload_bar.visible = equipped == "musket" and knight.weapons.musket_reloading() and _crosshair.visible
+	if _reload_bar.visible:
+		_reload_bar.value = knight.weapons.musket_loaded_fraction()
 	_touch_controls.hammer_equipped = equipped == "cryo_hammer"
 	# The Attack button dims only when holding knives with none left to throw.
 	_touch_controls.throw_enabled = equipped != "knife" or _knives_left > 0
@@ -503,7 +542,7 @@ func hide_for_cutscene() -> void:
 	_in_cutscene = true
 	close_crafting()
 	close_furnace_menu()
-	for node: CanvasItem in [_status, _wave_info, _big_boss_panel, _hotbar, _crosshair,
+	for node: CanvasItem in [_status, _wave_info, _big_boss_panel, _hotbar, _crosshair, _reload_bar,
 			_pickup_label, _pc_hint, _touch_controls, _banner]:
 		node.visible = false
 	_pickup_prompt = ""

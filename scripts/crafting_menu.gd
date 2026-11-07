@@ -36,6 +36,7 @@ const DESCRIPTIONS := {
 	"diamond_sword": "65 damage · fast · 1 in 12 crits for double",
 	"diamond_axe": "85 damage · slow, hits everyone in front · 1 in 12 crits",
 	"diamond_dagger": "25 damage · very fast · 1 in 12 crits for double",
+	"musket": "90 damage · unlimited shots · 3 s reload, even in slow motion · crits",
 	"cryo_armor": "Reflects 25% of melee damage and slows attackers",
 }
 
